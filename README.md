@@ -2,6 +2,10 @@
 
 This is a browser-local demonstration of inventory, orders, and staff workflows for four areas in one building: **Warehouse** and **Showroom 1–3**. It is not connected to a live database or the Ethiopia website. The role selector is for demonstration and is not authentication. Product names, stock, prices, customers, and payments in the demo are sample data.
 
+## Public demo
+
+The GitHub Pages build is published from `main` by `.github/workflows/deploy-pages.yml` at <https://yohannesmulugeta.github.io/Masion-Debrah-ERP/>. The site is a public demo: anyone can open it, change their own browser-local copy, and reset that copy. Do not enter real customer, staff, stock, or payment information.
+
 ## Run locally
 
 ```powershell
