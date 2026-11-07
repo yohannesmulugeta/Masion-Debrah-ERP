@@ -6,6 +6,8 @@ This is a browser-local demonstration of inventory, orders, and staff workflows 
 
 The GitHub Pages build is published from `main` by `.github/workflows/deploy-pages.yml` at <https://yohannesmulugeta.github.io/Masion-Debrah-ERP/>. The site is a public demo: anyone can open it, change their own browser-local copy, and reset that copy. Do not enter real customer, staff, stock, or payment information.
 
+The interface uses the supplied Maison Debrah logo artwork, the brand guideline's dark `#2A352F` and light `#AFBBA3` colors, and Playfair Display with Inter. The web logo in `public/brand/` is a tightly framed copy of the supplied light logo with the guideline's light color. See `docs/PRESENTATION_GUIDE.md` for a short demonstration sequence.
+
 ## Run locally
 
 ```powershell

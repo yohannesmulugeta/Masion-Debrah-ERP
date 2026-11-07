@@ -19,7 +19,7 @@ export const Header: React.FC<{ onMenuClick: () => void; menuOpen: boolean }> = 
         <button className="menu-toggle" onClick={onMenuClick} aria-label="Open navigation" aria-controls="main-navigation" aria-expanded={menuOpen}><Menu size={22} aria-hidden="true" /></button>
         {/* Location Filter */}
         <div className="header-loc-selector" title="Area used for stock totals and inventory">
-          <Building2 size={16} color="var(--color-gold)" aria-hidden="true" />
+          <Building2 size={16} color="var(--color-accent-text)" aria-hidden="true" />
           <label htmlFor="header-area">Stock view</label>
           <select
             id="header-area"
@@ -50,7 +50,7 @@ export const Header: React.FC<{ onMenuClick: () => void; menuOpen: boolean }> = 
             border: '1px solid var(--color-border)',
           }}
         >
-          <Layers size={14} color="var(--color-gold)" />
+          <Layers size={14} color="var(--color-accent-text)" />
           <span>One building · 4 areas</span>
         </div>
       </div>
@@ -72,7 +72,7 @@ export const Header: React.FC<{ onMenuClick: () => void; menuOpen: boolean }> = 
 
         {/* Demo role switcher */}
         <div className="header-role-switcher" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <ShieldCheck size={16} color="var(--color-gold)" aria-hidden="true" />
+          <ShieldCheck size={16} color="var(--color-accent-text)" aria-hidden="true" />
           <label htmlFor="header-demo-role" className="header-role-label">Demo role</label>
           <select
             id="header-demo-role"

@@ -61,7 +61,7 @@ export const WebsiteFeedInspectorView: React.FC = () => {
       {showCodeSnippet && (
         <div className="card" style={{ background: '#1c2826', color: '#e5eee8', padding: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-gold)' }}>
+            <span style={{ fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--color-accent)' }}>
               Client Helper: src/lib/availabilityClient.ts
             </span>
           </div>
@@ -121,7 +121,7 @@ export async function fetchProductAvailability(sku: string) {
                   />
                 </div>
 
-                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--color-gold-text)', fontWeight: 700 }}>
+                <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.14em', color: 'var(--color-accent-text)', fontWeight: 700 }}>
                   {selectedProduct.collection}
                 </div>
                 <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.5rem', fontWeight: 400, margin: '4px 0 8px' }}>
@@ -223,7 +223,7 @@ export async function fetchProductAvailability(sku: string) {
                     <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', color: 'var(--color-text-muted)' }}>
                       Active Customer Holds
                     </div>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--color-gold-text)' }}>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--color-accent-text)' }}>
                       {selectedStock.activeReserved}
                     </div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--color-text-light)' }}>

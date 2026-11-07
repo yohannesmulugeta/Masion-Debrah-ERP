@@ -37,7 +37,7 @@ export const ReservationsView: React.FC = () => {
         style={{
           background: 'var(--color-bg-card)',
           border: '1px solid var(--color-border)',
-          borderLeft: '4px solid var(--color-gold)',
+          borderLeft: '4px solid var(--color-accent)',
           padding: '14px 18px',
           borderRadius: '4px',
           marginBottom: '24px',
@@ -47,7 +47,7 @@ export const ReservationsView: React.FC = () => {
           gap: '12px',
         }}
       >
-        <BookmarkCheck size={20} color="var(--color-gold)" style={{ flexShrink: 0 }} />
+        <BookmarkCheck size={20} color="var(--color-accent-text)" style={{ flexShrink: 0 }} />
         <div>
           <strong>Reservation Invariant:</strong> Placing a reservation increments <code>active_reserved</code> and
           decrements <code>sellable_available</code>. Physical stock on-hand does not drop until final fulfilment.
@@ -93,7 +93,7 @@ export const ReservationsView: React.FC = () => {
                     <td style={{ textAlign: 'center', fontWeight: 700 }}>{r.quantity}</td>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Clock size={14} color={isExpired ? 'var(--color-danger-text)' : 'var(--color-gold)'} />
+                        <Clock size={14} color={isExpired ? 'var(--color-danger-text)' : 'var(--color-accent-text)'} />
                         <span style={{ color: isExpired ? 'var(--color-danger-text)' : 'inherit' }}>
                           {new Date(r.expiresAt).toLocaleString()}
                         </span>

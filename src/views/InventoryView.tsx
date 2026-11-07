@@ -69,7 +69,7 @@ export const InventoryView: React.FC = () => {
                   <th key={loc.id} style={{ textAlign: 'center' }}>{loc.name}</th>
                 ))}
                 <th style={{ textAlign: 'right' }}>Total On-Hand</th>
-                <th style={{ textAlign: 'right', color: 'var(--color-gold-text)' }}>Reserved Holds</th>
+                <th style={{ textAlign: 'right', color: 'var(--color-accent-text)' }}>Reserved Holds</th>
                 <th style={{ textAlign: 'right' }}>Sellable Available</th>
                 <th style={{ textAlign: 'center' }}>Availability in View</th>
               </tr>
@@ -108,7 +108,7 @@ export const InventoryView: React.FC = () => {
                     })}
 
                     <td data-label="On hand" style={{ textAlign: 'right', fontWeight: 600 }}>{totalOnHand}</td>
-                    <td data-label="Reserved" style={{ textAlign: 'right', color: 'var(--color-gold-text)' }}>
+                    <td data-label="Reserved" style={{ textAlign: 'right', color: 'var(--color-accent-text)' }}>
                       {totalReserved > 0 ? totalReserved : '—'}
                     </td>
                     <td

@@ -66,7 +66,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
       <div className="sidebar-brand">
         <button className="sidebar-close" ref={closeButtonRef} onClick={onClose} aria-label="Close navigation">×</button>
         <div className="brand-eyebrow">Ethiopia Operations</div>
-        <div className="brand-title">Maison Debrah</div>
+        <img
+          className="brand-logo"
+          src={`${import.meta.env.BASE_URL}brand/maison-debrah-logo-light.svg`}
+          alt="Maison Debrah"
+        />
         <div className="brand-sub">Private ERP & Inventory</div>
       </div>
 
@@ -130,7 +134,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
           <BookmarkCheck />
           <span>Reservations (Holds)</span>
           {activeReservationsCount > 0 && (
-            <span className="nav-badge" aria-hidden="true" style={{ backgroundColor: 'var(--color-gold)' }}>
+            <span className="nav-badge nav-badge-accent" aria-hidden="true">
               {activeReservationsCount}
             </span>
           )}
@@ -175,18 +179,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
           className={`nav-item ${currentView === 'website_feed' ? 'active' : ''}`}
           aria-current={currentView === 'website_feed' ? 'page' : undefined}
           onClick={() => onNavigate('website_feed')}
-          style={{
-            borderLeft: currentView === 'website_feed' ? '3px solid #22c55e' : undefined,
-          }}
         >
-          <Globe color="#22c55e" />
+          <Globe color="var(--color-accent)" />
           <span>Website Feed Inspector</span>
         </button>
       </nav>
 
       <div className="sidebar-footer">
         <div>Maison Debrah ERP v1.0</div>
-        <div style={{ color: '#9ab0a2', marginTop: '2px' }}>Browser-local prototype</div>
+        <div style={{ color: 'var(--color-accent)', marginTop: '2px' }}>Browser-local prototype</div>
       </div>
     </aside>
   );

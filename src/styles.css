@@ -2,24 +2,23 @@
   --font-serif: 'Playfair Display', Georgia, serif;
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   
-  --color-primary-dark: #19251f;
-  --color-primary: #26362c;
-  --color-primary-light: #3e5346;
-  --color-gold: #ad8e5c;
-  --color-gold-text: #84633a;
-  --color-gold-hover: #b89b6b;
-  --color-gold-light: #fbf7f0;
+  --color-primary-dark: #2a352f;
+  --color-primary: #2a352f;
+  --color-primary-light: #405047;
+  --color-accent: #afbba3;
+  --color-accent-text: #445648;
+  --color-accent-hover: #c2ccb8;
 
-  --color-bg-app: #f7f6f2;
+  --color-bg-app: #f7f8f5;
   --color-bg-card: #ffffff;
-  --color-bg-subtle: #f1f0eb;
+  --color-bg-subtle: #f1f3ee;
   
-  --color-border: #e3e6e1;
-  --color-border-dark: #cfd5cc;
+  --color-border: #dfe5dc;
+  --color-border-dark: #c9d2c5;
 
-  --color-text-main: #202b25;
-  --color-text-muted: #647067;
-  --color-text-light: #5c685f;
+  --color-text-main: #2a352f;
+  --color-text-muted: #59685e;
+  --color-text-light: #526157;
 
   --color-success-bg: #eaf3eb;
   --color-success-text: #1d6133;
@@ -96,7 +95,7 @@ body {
 }
 
 .sidebar-brand {
-  padding: 24px 20px;
+  padding: 20px 20px 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
@@ -104,22 +103,22 @@ body {
   font-size: 0.65rem;
   letter-spacing: 0.22em;
   text-transform: uppercase;
-  color: var(--color-gold);
+  color: var(--color-accent);
   font-weight: 700;
   margin-bottom: 4px;
 }
 
-.brand-title {
-  font-family: var(--font-serif);
-  font-size: 1.45rem;
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  color: #fff;
+.brand-logo {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 670 / 200;
+  margin: 2px 0 7px;
 }
 
 .brand-sub {
   font-size: 0.72rem;
-  color: #9ab0a2;
+  color: #dce4d9;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -137,7 +136,7 @@ body {
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  color: #799182;
+  color: var(--color-accent);
   font-weight: 700;
   padding: 14px 12px 6px;
 }
@@ -148,7 +147,7 @@ body {
   gap: 12px;
   padding: 10px 14px;
   border-radius: var(--radius-sm);
-  color: #c7d6cc;
+  color: #dce4d9;
   font-size: 0.84rem;
   font-weight: 500;
   background: transparent;
@@ -167,7 +166,7 @@ body {
 .nav-item.active {
   background-color: var(--color-primary);
   color: #fff;
-  border-left: 3px solid var(--color-gold);
+  border-left: 3px solid var(--color-accent);
 }
 
 .nav-item:active, .attention-grid button:active, .btn:active { filter: brightness(0.94); }
@@ -181,7 +180,7 @@ body {
 
 .nav-item.active svg {
   opacity: 1;
-  color: var(--color-gold);
+  color: var(--color-accent);
 }
 
 .nav-badge {
@@ -194,11 +193,16 @@ body {
   font-weight: 600;
 }
 
+.nav-badge-accent {
+  background-color: var(--color-accent);
+  color: var(--color-primary-dark);
+}
+
 .sidebar-footer {
   padding: 16px 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.72rem;
-  color: #7d9385;
+  color: var(--color-accent);
 }
 
 /* Main Area */
@@ -368,15 +372,15 @@ body {
   border-color: var(--color-primary-light);
 }
 
-.btn-gold {
-  background-color: var(--color-gold);
+.btn-accent {
+  background-color: var(--color-accent);
   color: var(--color-primary-dark);
-  border-color: var(--color-gold);
+  border-color: var(--color-accent);
 }
 
-.btn-gold:hover {
-  background-color: var(--color-gold-hover);
-  border-color: var(--color-gold-hover);
+.btn-accent:hover {
+  background-color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 
 .btn-secondary {
@@ -406,8 +410,12 @@ body {
 }
 
 button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible, [role="button"]:focus-visible {
-  outline: 3px solid var(--color-gold);
+  outline: 3px solid var(--color-accent-text);
   outline-offset: 2px;
+}
+
+.app-sidebar button:focus-visible {
+  outline-color: var(--color-accent);
 }
 
 /* Metric Cards */
@@ -472,7 +480,7 @@ button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible
   cursor: pointer;
 }
 
-.attention-grid button:hover { border-color: var(--color-gold); }
+.attention-grid button:hover { border-color: var(--color-accent); }
 .attention-grid strong { font-size: 1.3rem; color: var(--color-primary); }
 .attention-grid span { flex: 1; font-size: 0.8rem; }
 

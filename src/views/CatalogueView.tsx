@@ -139,7 +139,7 @@ export const CatalogueView: React.FC = () => {
         style={{
           background: 'var(--color-bg-card)',
           border: '1px solid var(--color-border)',
-          borderLeft: '4px solid var(--color-gold)',
+          borderLeft: '4px solid var(--color-accent)',
           padding: '14px 18px',
           borderRadius: '4px',
           marginBottom: '24px',
@@ -149,7 +149,7 @@ export const CatalogueView: React.FC = () => {
           gap: '12px',
         }}
       >
-        <Info size={20} color="var(--color-gold)" style={{ flexShrink: 0 }} />
+        <Info size={20} color="var(--color-accent-text)" style={{ flexShrink: 0 }} />
         <div>
           <strong>HQ Single Source of Truth:</strong> Product codes and specifications are
           controlled by Maison Debrah HQ. Stock availability and pricing within Ethiopia are managed
@@ -241,7 +241,7 @@ export const CatalogueView: React.FC = () => {
                   fontSize: '0.7rem',
                   textTransform: 'uppercase',
                   letterSpacing: '0.12em',
-                  color: 'var(--color-gold-text)',
+                  color: 'var(--color-accent-text)',
                   fontWeight: 700,
                   marginBottom: '4px',
                 }}

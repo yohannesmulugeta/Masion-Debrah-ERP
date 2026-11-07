@@ -59,7 +59,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
             <PlusCircle size={15} />
             <span>Post Stock Movement</span>
           </button>
-          <button className="btn btn-gold" onClick={() => onNavigate('orders')}>
+          <button className="btn btn-accent" onClick={() => onNavigate('orders')}>
             <TrendingUp size={15} />
             <span>New Showroom Order</span>
           </button>
@@ -92,7 +92,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
         <div className="metric-card">
           <div className="metric-title">
             <span>Active Reservations</span>
-            <BookmarkCheck size={18} color="var(--color-gold)" />
+            <BookmarkCheck size={18} color="var(--color-accent-text)" />
           </div>
           <div className="metric-value">{totalReserved}</div>
             <div className="metric-sub">{stockViewReservations.length} active customer holds in this stock view</div>
@@ -171,7 +171,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
                       )}
                     </td>
                     <td style={{ textAlign: 'right', fontWeight: 600 }}>{onHand}</td>
-                    <td style={{ textAlign: 'right', color: 'var(--color-gold-text)' }}>{res}</td>
+                    <td style={{ textAlign: 'right', color: 'var(--color-accent-text)' }}>{res}</td>
                     <td
                       style={{
                         textAlign: 'right',
