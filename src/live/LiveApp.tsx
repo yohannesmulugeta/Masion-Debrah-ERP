@@ -61,6 +61,20 @@ async function readData(): Promise<Data> {
   };
 }
 
+async function duringStartup<T>(request: PromiseLike<T>, step: string): Promise<T> {
+  let timeout: number | undefined;
+  try {
+    return await Promise.race([
+      Promise.resolve(request),
+      new Promise<never>((_, reject) => {
+        timeout = window.setTimeout(() => reject(new Error(`${step} took too long. Check your connection and try again.`)), 12000);
+      }),
+    ]);
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 function Field({ label, name, type = 'text', required = true, min, step, placeholder, defaultValue }: {
   label: string; name: string; type?: string; required?: boolean; min?: string; step?: string; placeholder?: string; defaultValue?: string;
 }) {
@@ -83,6 +97,8 @@ export function LiveApp() {
   const [tab, setTab] = useState<LiveTab>('overview');
   const [selectedLocationId, setSelectedLocationId] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [loadingStage, setLoadingStage] = useState('Connecting to your staff session…');
+  const [startupError, setStartupError] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -93,25 +109,48 @@ export function LiveApp() {
   const refresh = useCallback(async () => { setData(await readData()); }, []);
   useEffect(() => {
     if (!client) { setLoading(false); return; }
-    client.auth.getSession().then(({ data: current, error: authError }) => {
-      if (authError) setError(authError.message);
-      setSession(current.session); setLoading(false);
+    let active = true;
+    const timeout = window.setTimeout(() => {
+      if (active) {
+        setStartupError('The staff session took too long to load. Check your connection and try again.');
+        setLoading(false);
+      }
+    }, 12000);
+    const { data: subscription } = client.auth.onAuthStateChange((event, next) => {
+      if (!active || !['INITIAL_SESSION', 'SIGNED_IN', 'SIGNED_OUT', 'PASSWORD_RECOVERY'].includes(event)) return;
+      window.clearTimeout(timeout);
+      setStartupError('');
+      setSession(previous => previous?.user.id === next?.user.id ? previous : next);
+      if (!next) setLoading(false);
     });
-    const { data: subscription } = client.auth.onAuthStateChange((_event, next) => setSession(next));
-    return () => subscription.subscription.unsubscribe();
+    return () => { active = false; window.clearTimeout(timeout); subscription.subscription.unsubscribe(); };
   }, [client]);
   useEffect(() => {
     if (!client || !session) { setProfile(null); setData(emptyData); return; }
+    let active = true;
     setLoading(true);
+    setLoadingStage('Loading your staff profile…');
     void (async () => {
       try {
-        const { data: staff, error: profileError } = await client.from('staff_profiles').select('*').eq('id', session.user.id).maybeSingle();
+        const { data: staff, error: profileError } = await duringStartup(
+          client.from('staff_profiles').select('*').eq('id', session.user.id).maybeSingle(), 'Staff profile');
+        if (!active) return;
         if (profileError) throw profileError;
         setProfile(staff);
-        if (staff?.is_active) await refresh();
-      } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
-      finally { setLoading(false); }
+        if (staff?.is_active) {
+          setLoadingStage('Loading shared records…');
+          const records = await duringStartup(readData(), 'Shared records');
+          if (active) setData(records);
+        }
+        if (active) setLoading(false);
+      } catch (cause) {
+        if (active) {
+          setStartupError(cause instanceof Error ? cause.message : String(cause));
+          setLoading(false);
+        }
+      }
     })();
+    return () => { active = false; };
   }, [client, session, refresh]);
 
   const names = useMemo(() => ({
@@ -214,7 +253,8 @@ export function LiveApp() {
   }
 
   if (!client) return <div className="live-center">Live backend configuration is missing.</div>;
-  if (loading) return <div className="live-center" role="status">Loading Maison Debrah ERP…</div>;
+  if (loading) return <div className="live-center" role="status">{loadingStage}</div>;
+  if (startupError) return <main className="live-center"><h1>Unable to load the ERP</h1><p role="alert">{startupError}</p><button type="button" onClick={() => window.location.reload()}>Try again</button></main>;
   if (!session) return <main className="live-auth"><div className="live-auth-card"><p className="live-eyebrow">Maison Debrah</p><h1>{resetMode ? 'Set or reset your password' : 'ERP staff sign in'}</h1><p>{resetMode ? 'Enter your assigned staff email. We will send a new setup link.' : 'Use your assigned staff account. Operational records are shared across the building.'}</p>{linkExpired && !resetMode && <p className="live-error" role="alert">That email link has expired or was already used. Request a new password setup link below.</p>}{resetMode ? <form onSubmit={requestPasswordReset}><Field label="Staff email" name="email" type="email" /><button className="live-primary" disabled={busy}>Send setup link</button></form> : <form onSubmit={signIn}><Field label="Email" name="email" type="email" /><Field label="Password" name="password" type="password" /><button className="live-primary" disabled={busy}>Sign in</button></form>}<button type="button" className="live-text-button" onClick={() => { setResetMode(!resetMode); setError(''); setMessage(''); }}>{resetMode ? 'Back to sign in' : 'Need to set or reset your password?'}</button>{error && <p className="live-error" role="alert">{error}</p>}{message && <p className="live-success" role="status">{message}</p>}</div></main>;
   if (passwordSetup) return <main className="live-auth"><div className="live-auth-card"><p className="live-eyebrow">Maison Debrah</p><h1>Set your ERP password</h1><p>Finish setting up your invited staff account.</p><form onSubmit={finishPasswordSetup}><Field label="New password" name="password" type="password" /><Field label="Confirm password" name="confirmation" type="password" /><button className="live-primary" disabled={busy}>Save password</button></form>{error && <p className="live-error" role="alert">{error}</p>}</div></main>;
   if (!profile?.is_active) return <main className="live-center"><h1>Staff access pending</h1><p>Your account has no active Maison Debrah staff profile. Ask the administrator to assign your role.</p><button onClick={() => void client.auth.signOut()}>Sign out</button></main>;
