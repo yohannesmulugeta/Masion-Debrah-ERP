@@ -199,6 +199,61 @@ export type Database = {
           },
         ]
       }
+      erp_evidence: {
+        Row: {
+          created_at: string
+          delivery_id: string | null
+          file_name: string
+          id: string
+          mime_type: string
+          payment_id: string | null
+          storage_path: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_id?: string | null
+          file_name: string
+          id?: string
+          mime_type: string
+          payment_id?: string | null
+          storage_path: string
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          delivery_id?: string | null
+          file_name?: string
+          id?: string
+          mime_type?: string
+          payment_id?: string | null
+          storage_path?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_evidence_delivery_id_fkey"
+            columns: ["delivery_id"]
+            isOneToOne: false
+            referencedRelation: "deliveries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_evidence_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_evidence_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exception_cases: {
         Row: {
           case_number: string
@@ -1038,6 +1093,20 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["staff_role"]
       }
+      erp_apply_product_prices: {
+        Args: { p_prices: Json; p_reason: string }
+        Returns: number
+      }
+      erp_attach_evidence: {
+        Args: {
+          p_delivery_id: string
+          p_file_name: string
+          p_mime_type: string
+          p_payment_id: string
+          p_storage_path: string
+        }
+        Returns: string
+      }
       erp_confirm_delivery: {
         Args: {
           p_delivery_id: string
@@ -1045,6 +1114,15 @@ export type Database = {
           p_signed_reference: string
         }
         Returns: undefined
+      }
+      erp_create_draft_product: {
+        Args: {
+          p_category: string
+          p_description?: string
+          p_name: string
+          p_sku: string
+        }
+        Returns: string
       }
       erp_create_order: {
         Args: {
@@ -1101,6 +1179,18 @@ export type Database = {
         Args: { p_delivery_id: string; p_reason: string }
         Returns: undefined
       }
+      erp_link_product_image: {
+        Args: {
+          p_product_id: string
+          p_public_url: string
+          p_storage_path: string
+        }
+        Returns: undefined
+      }
+      erp_post_opening_stock: {
+        Args: { p_items: Json; p_reference: string }
+        Returns: number
+      }
       erp_post_receipt: {
         Args: {
           p_product_id: string
@@ -1137,6 +1227,22 @@ export type Database = {
       erp_refund_cancel_order: {
         Args: { p_order_id: string; p_reason: string; p_reference: string }
         Returns: number
+      }
+      erp_release_expired_reservation: {
+        Args: { p_reason: string; p_reservation_id: string }
+        Returns: undefined
+      }
+      erp_review_product: {
+        Args: {
+          p_category: string
+          p_description: string
+          p_is_active: boolean
+          p_local_price: number
+          p_name: string
+          p_product_id: string
+          p_reason: string
+        }
+        Returns: undefined
       }
       erp_update_product_price: {
         Args: { p_local_price: number; p_product_id: string; p_reason: string }

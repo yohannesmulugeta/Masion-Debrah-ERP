@@ -1,4 +1,6 @@
-# Maison Debrah ERP — proposed staff permission matrix
+# Maison Debrah ERP — earlier proposed permission matrix
+
+> For the current live role rules, use [LIVE_OPERATING_GUIDE.md](LIVE_OPERATING_GUIDE.md). This table is retained as a historical proposal.
 
 The UI role selector is a prototype control, not real staff sign-in. Database read policies require an active staff profile; operational client writes and unverified functions are restricted. The table below describes the **intended** role design and needs business approval and server-side implementation before live use.
 

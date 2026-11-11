@@ -1,6 +1,6 @@
 # Maison Debrah ERP — order-to-handover procedure
 
-**Status:** Draft for staff review. The steps below describe the browser-local demo and approved process direction. They are not authorization to enter real transactions.
+**Status:** Earlier process draft. Use [LIVE_OPERATING_GUIDE.md](LIVE_OPERATING_GUIDE.md) for the current live workspace. The notes below remain for historical discussion and are not authorization to enter real transactions.
 
 1. **Sales confirms the order.** Record the customer, agreed item, price, and delivery plan. If stock is in another room, arrange a transfer. If it is unavailable, do not promise immediate delivery.
 2. **Finance records any deposit.** Sales may then reserve available stock and enter both a customer review date and the agreed collection/delivery date. Staff discuss an unresolved deposit reservation around day 3–5. An extension requires new dates and a reason; no refund happens automatically.

@@ -1,5 +1,14 @@
 # Maison Debrah ERP implementation status
 
+## Workflow update — 11 November 2026, pending staff walkthrough
+
+- Two additive migrations are applied to the linked Maison Debrah project: product draft review/activation, batch prices, verified opening counts, explicit expired-hold release, private payment and signed-handover evidence, and a refund path after an unsigned failed delivery returns to quarantine. Existing product, stock, and customer rows were preserved.
+- The live UI now has product search, filters, pagination, image review/upload, individual and batch price entry, opening count entry, order price/availability review, an order detail timeline, Finance proof upload, handover document upload, suggested reservation review dates, and explicit expired-hold release.
+- A new rollback SQL smoke test covers draft pricing/activation, duplicate opening counts, hold release, Finance proof role checks, and a refund after a failed item returns to quarantine. It passed against the linked project and left no test records.
+- The imported 93 products are still inactive and unpriced. Sixty-five have linked images. There is still no approved opening stock or real order. A Finance Test account has been invited through a unique alias of the administrator's Gmail inbox and assigned the Finance role; its first sign-in is pending. Real transactions must wait for approved prices, physical counts, and named Finance access.
+- The browser interaction and mobile layout could not be verified in this update because computer use is disabled in the current Work settings. The live build and test suite are checked separately. GitHub Pages still publishes the demo build.
+- Current procedure: [LIVE_OPERATING_GUIDE.md](LIVE_OPERATING_GUIDE.md).
+
 **Checked:** 11 November 2026
 **Branch:** `codex/order-to-delivery-workflow`
 
