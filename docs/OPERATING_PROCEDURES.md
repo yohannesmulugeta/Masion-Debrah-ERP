@@ -1,5 +1,7 @@
 # Maison Debrah ERP — Standard Operating Procedures (SOP)
 
+> **Earlier demo procedure:** This document includes the old 48-hour hold and HQ catalogue assumptions. Use [WORKFLOW_SOP_DRAFT.md](WORKFLOW_SOP_DRAFT.md) for the current proposed order-to-handover procedure.
+
 This document proposes staff workflows for managing Ethiopian inventory, showroom sales, customer holds, and exceptions. The current UI is a browser-local demo, so these steps are not yet approved production procedures.
 
 ---

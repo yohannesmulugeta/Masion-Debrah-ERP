@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useErp } from '../context/ErpContext';
 import { SalesOrder } from '../types';
-import { Plus, Search, CreditCard, Truck } from 'lucide-react';
+import { Plus, Search, CreditCard, Truck, BookmarkCheck } from 'lucide-react';
 import { Modal } from '../components/Modal';
+import { remainingToDispatch } from '../lib/deliveryOperations';
 
 export const OrdersView: React.FC = () => {
   const {
@@ -10,8 +11,14 @@ export const OrdersView: React.FC = () => {
     products,
     locations,
     createOrder,
-    fulfilOrder,
+    createReservation,
+    dispatchOrderLine,
+    deliveries,
+    payments,
+    refunds,
+    reservations,
     recordPayment,
+    refundAndCancelOrder,
     getProductStock,
     canPerform,
   } = useErp();
@@ -19,13 +26,30 @@ export const OrdersView: React.FC = () => {
   const [search, setSearch] = useState('');
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false);
   const [selectedOrderForPayment, setSelectedOrderForPayment] = useState<SalesOrder | null>(null);
-  const [selectedOrderForFulfil, setSelectedOrderForFulfil] = useState<SalesOrder | null>(null);
+  const [selectedOrderForRefund, setSelectedOrderForRefund] = useState<SalesOrder | null>(null);
+  const [refundReason, setRefundReason] = useState('');
+  const [refundReference, setRefundReference] = useState('');
+  const [selectedOrderForDispatch, setSelectedOrderForDispatch] = useState<SalesOrder | null>(null);
+  const [selectedOrderForReserve, setSelectedOrderForReserve] = useState<SalesOrder | null>(null);
+  const [reserveProductId, setReserveProductId] = useState('');
+  const [reserveQuantity, setReserveQuantity] = useState(1);
+  const [reserveLocationId, setReserveLocationId] = useState('loc-wh');
+  const [reserveReviewAt, setReserveReviewAt] = useState('');
+  const [reserveUntil, setReserveUntil] = useState('');
+  const [dispatchLineId, setDispatchLineId] = useState('');
+  const [dispatchQuantity, setDispatchQuantity] = useState(1);
+  const [dispatchLocationId, setDispatchLocationId] = useState('loc-wh');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [intendedRecipient, setIntendedRecipient] = useState('');
   const [orderError, setOrderError] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const orderErrorRef = useRef<HTMLDivElement>(null);
   const paymentErrorRef = useRef<HTMLDivElement>(null);
   const actionErrorRef = useRef<HTMLDivElement>(null);
+  const pendingActionRef = useRef(false);
+
+  useEffect(() => { pendingActionRef.current = false; }, [orders, reservations, payments, refunds, deliveries]);
 
   useEffect(() => { if (orderError) orderErrorRef.current?.focus(); }, [orderError]);
   useEffect(() => { if (paymentError) paymentErrorRef.current?.focus(); }, [paymentError]);
@@ -37,7 +61,6 @@ export const OrdersView: React.FC = () => {
   const [locationId, setLocationId] = useState('loc-bole');
   const [selectedProductId, setSelectedProductId] = useState(products[0]?.id || '');
   const [quantity, setQuantity] = useState(1);
-  const [placeHold, setPlaceHold] = useState(false);
   const [orderNotes, setOrderNotes] = useState('');
 
   // Payment form
@@ -60,6 +83,8 @@ export const OrdersView: React.FC = () => {
   const handleCreateOrder = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) return;
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = true;
 
     try {
       createOrder({
@@ -74,16 +99,15 @@ export const OrdersView: React.FC = () => {
           },
         ],
         notes: orderNotes,
-        holdHours: placeHold ? 48 : undefined,
       });
       setActionError(null);
       setIsNewOrderOpen(false);
       setCustomerName('');
       setCustomerPhone('');
       setOrderNotes('');
-      setPlaceHold(false);
       setOrderError(null);
     } catch (err: unknown) {
+      pendingActionRef.current = false;
       setOrderError(err instanceof Error ? err.message : 'Order creation failed.');
     }
   };
@@ -96,6 +120,33 @@ export const OrdersView: React.FC = () => {
     setPayRef('');
   };
 
+  const handleOpenReserve = (order: SalesOrder) => {
+    const first = order.lines.find(line => !reservations.some(item => item.orderId === order.id && item.productId === line.productId && item.status === 'active') && remainingToDispatch(order, line.id, deliveries) > 0);
+    if (!first) return;
+    setSelectedOrderForReserve(order);
+    setReserveProductId(first.productId);
+    setReserveQuantity(1);
+    setReserveLocationId(order.locationId);
+    setReserveReviewAt('');
+    setReserveUntil('');
+    setActionError(null);
+  };
+
+  const handleReserve = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedOrderForReserve) return;
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = true;
+    try {
+      createReservation({ orderId: selectedOrderForReserve.id, productId: reserveProductId, locationId: reserveLocationId, quantity: reserveQuantity, reviewAt: reserveReviewAt, expiresAt: reserveUntil });
+      setSelectedOrderForReserve(null);
+      setActionError(null);
+    } catch (err: unknown) {
+      pendingActionRef.current = false;
+      setActionError(err instanceof Error ? err.message : 'Could not reserve the item.');
+    }
+  };
+
   const handleSubmitPayment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOrderForPayment) return;
@@ -103,6 +154,8 @@ export const OrdersView: React.FC = () => {
       setPaymentError('Select a payment method.');
       return;
     }
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = true;
     try {
       recordPayment({
         orderId: selectedOrderForPayment.id,
@@ -112,19 +165,58 @@ export const OrdersView: React.FC = () => {
       });
       setSelectedOrderForPayment(null);
     } catch (err: unknown) {
+      pendingActionRef.current = false;
       setPaymentError(err instanceof Error ? err.message : 'Payment failed.');
     }
   };
 
-  const handleFulfil = () => {
-    if (!selectedOrderForFulfil) return;
+  const handleRefund = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedOrderForRefund) return;
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = true;
     try {
-      fulfilOrder(selectedOrderForFulfil.id);
-      setSelectedOrderForFulfil(null);
+      refundAndCancelOrder({ orderId: selectedOrderForRefund.id, reason: refundReason, referenceNo: refundReference });
+      setSelectedOrderForRefund(null);
       setActionError(null);
     } catch (err: unknown) {
-      setActionError(err instanceof Error ? err.message : 'Fulfilment failed.');
-      setSelectedOrderForFulfil(null);
+      pendingActionRef.current = false;
+      setActionError(err instanceof Error ? err.message : 'Refund could not be recorded.');
+    }
+  };
+
+  const handleOpenDispatch = (order: SalesOrder) => {
+    const first = order.lines.find(line => remainingToDispatch(order, line.id, deliveries) > 0);
+    if (!first) return;
+    setSelectedOrderForDispatch(order);
+    setDispatchLineId(first.id);
+    setDispatchQuantity(1);
+    const hold = reservations.find(item => item.orderId === order.id && item.productId === first.productId && item.status === 'active');
+    setDispatchLocationId(hold?.locationId || order.locationId);
+    setDeliveryAddress('');
+    setIntendedRecipient(order.customerName);
+    setActionError(null);
+  };
+
+  const handleDispatch = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedOrderForDispatch) return;
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = true;
+    try {
+      dispatchOrderLine({
+        orderId: selectedOrderForDispatch.id,
+        lineId: dispatchLineId,
+        quantity: dispatchQuantity,
+        locationId: dispatchLocationId,
+        deliveryAddress,
+        intendedRecipient,
+      });
+      setSelectedOrderForDispatch(null);
+      setActionError(null);
+    } catch (err: unknown) {
+      pendingActionRef.current = false;
+      setActionError(err instanceof Error ? err.message : 'Dispatch failed.');
     }
   };
 
@@ -203,7 +295,7 @@ export const OrdersView: React.FC = () => {
                         const p = products.find((prod) => prod.id === line.productId);
                         return (
                           <div key={line.id} style={{ fontSize: '0.8rem' }}>
-                            {line.quantity}x {p?.name} ({p?.sku})
+                            {line.quantity}x {p?.name} ({p?.sku}) · {remainingToDispatch(o, line.id, deliveries)} to dispatch
                           </div>
                         );
                       })}
@@ -233,6 +325,8 @@ export const OrdersView: React.FC = () => {
                             ? 'badge-part-paid'
                             : o.status === 'delivered'
                             ? 'badge-delivered'
+                            : o.status === 'dispatched' || o.status === 'partially_dispatched'
+                            ? 'badge-dispatched'
                             : 'badge-reserved'
                         }`}
                       >
@@ -240,7 +334,7 @@ export const OrdersView: React.FC = () => {
                       </span>
                     </td>
                     <td data-label="Actions" style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '6px' }}>
                         {o.balanceDue > 0 && (
                           <button
                             className="btn btn-secondary btn-sm"
@@ -252,16 +346,24 @@ export const OrdersView: React.FC = () => {
                             <span>Pay</span>
                           </button>
                         )}
-                        {o.status !== 'delivered' && (
+                        {o.status !== 'cancelled' && o.paidAmount > 0 && o.lines.some(line => !reservations.some(item => item.orderId === o.id && item.productId === line.productId && item.status === 'active') && remainingToDispatch(o, line.id, deliveries) > 0) && (
+                          <button className="btn btn-secondary btn-sm" onClick={() => handleOpenReserve(o)} disabled={!canPerform('create_reservation')} title="Reserve stock after a Finance-recorded deposit">
+                            <BookmarkCheck size={13} /><span>Reserve</span>
+                          </button>
+                        )}
+                        {o.status !== 'cancelled' && o.lines.some(line => remainingToDispatch(o, line.id, deliveries) > 0) && (
                           <button
                             className="btn btn-primary btn-sm"
-                            onClick={() => setSelectedOrderForFulfil(o)}
-                            disabled={!canPerform('fulfil_order')}
-                            title="Fulfil and deduct physical stock"
+                            onClick={() => handleOpenDispatch(o)}
+                            disabled={!canPerform('fulfil_order') || o.balanceDue > 0}
+                            title={o.balanceDue > 0 ? 'Finance must confirm full payment first' : 'Dispatch an item and deduct stock once'}
                           >
                             <Truck size={13} />
-                            <span>Fulfil</span>
+                            <span>Dispatch</span>
                           </button>
+                        )}
+                        {o.status !== 'cancelled' && o.paidAmount > 0 && !deliveries.some(record => record.orderId === o.id) && canPerform('approve_refund') && (
+                          <button className="btn btn-secondary btn-sm" onClick={() => { setSelectedOrderForRefund(o); setRefundReason(''); setRefundReference(''); setActionError(null); }} title="Refund all payments and cancel before dispatch">Refund</button>
                         )}
                       </div>
                     </td>
@@ -326,7 +428,7 @@ export const OrdersView: React.FC = () => {
               </select>
             </div>
             <div className="form-group">
-              <label htmlFor="order-product">Product (Catalogue SKU)</label>
+                <label htmlFor="order-product">Product</label>
               <select
                 id="order-product"
                 className="form-select"
@@ -392,16 +494,7 @@ export const OrdersView: React.FC = () => {
             </div>
           </div>
 
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={placeHold}
-              onChange={(e) => setPlaceHold(e.target.checked)}
-              disabled={currentStock.available < quantity}
-            />
-            <span>Hold {quantity} unit(s) in this showroom for 48 hours</span>
-          </label>
-          {currentStock.available < quantity && <p className="form-note">A hold is unavailable because this showroom has only {currentStock.available} unreserved unit(s). The order can still be recorded without a hold.</p>}
+          <p className="form-note">Finance records a deposit first. Sales can then reserve available stock with an agreed review and collection date.</p>
 
           <div className="form-group">
             <label htmlFor="order-notes">Order Notes / Delivery Instructions</label>
@@ -423,7 +516,7 @@ export const OrdersView: React.FC = () => {
             >
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary" disabled={placeHold && currentStock.available < quantity}>
+            <button type="submit" className="btn btn-primary">
               Create Order
             </button>
           </div>
@@ -541,16 +634,75 @@ export const OrdersView: React.FC = () => {
         )}
       </Modal>
 
-      <Modal isOpen={selectedOrderForFulfil !== null} onClose={() => setSelectedOrderForFulfil(null)} title="Confirm Stock Fulfilment">
-        {selectedOrderForFulfil && (
-          <div>
-            <p>Deduct stock for order <strong>{selectedOrderForFulfil.orderNumber}</strong> and mark it delivered in this demo?</p>
-            <p className="form-note">All order items must have enough stock. A failed check leaves the order unchanged.</p>
-            <div className="modal-actions">
-              <button className="btn btn-secondary" onClick={() => setSelectedOrderForFulfil(null)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleFulfil}>Confirm Fulfilment</button>
-            </div>
+      <Modal isOpen={selectedOrderForRefund !== null} onClose={() => setSelectedOrderForRefund(null)} title={`Finance refund · ${selectedOrderForRefund?.orderNumber || ''}`}>
+        {selectedOrderForRefund && <form onSubmit={handleRefund}>
+          <p className="form-note">Before dispatch only. Record the full refund of ETB {selectedOrderForRefund.paidAmount.toLocaleString()} and cancel this order. Any reserved stock will be released.</p>
+          {actionError && <div className="form-error" role="alert">{actionError}</div>}
+          <div className="form-group"><label htmlFor="refund-reason">Reason and customer discussion</label><textarea id="refund-reason" className="form-textarea" value={refundReason} onChange={event => setRefundReason(event.target.value)} required /></div>
+          <div className="form-group"><label htmlFor="refund-reference">Refund transaction reference</label><input id="refund-reference" className="form-input" value={refundReference} onChange={event => setRefundReference(event.target.value)} required /></div>
+          <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setSelectedOrderForRefund(null)}>Cancel</button><button type="submit" className="btn btn-primary">Record refund & cancel</button></div>
+        </form>}
+      </Modal>
+
+      <Modal isOpen={selectedOrderForReserve !== null} onClose={() => setSelectedOrderForReserve(null)} title={`Reserve stock · ${selectedOrderForReserve?.orderNumber || ''}`}>
+        {selectedOrderForReserve && <form onSubmit={handleReserve}>
+          <p className="form-note">A Finance-recorded deposit is required. Set a review date (normally discussed around day 3–5) and the agreed collection or delivery date. Reaching either date does not issue an automatic refund.</p>
+          {actionError && <div className="form-error" role="alert">{actionError}</div>}
+          <div className="form-row">
+            <div className="form-group"><label htmlFor="reserve-item">Item</label><select id="reserve-item" className="form-select" value={reserveProductId} onChange={event => setReserveProductId(event.target.value)} required>
+              {selectedOrderForReserve.lines.filter(line => !reservations.some(item => item.orderId === selectedOrderForReserve.id && item.productId === line.productId && item.status === 'active') && remainingToDispatch(selectedOrderForReserve, line.id, deliveries) > 0).map(line => <option key={line.id} value={line.productId}>{products.find(product => product.id === line.productId)?.name}</option>)}
+            </select></div>
+            <div className="form-group"><label htmlFor="reserve-qty">Quantity</label><input id="reserve-qty" className="form-input" type="number" min="1" max={selectedOrderForReserve.lines.find(line => line.productId === reserveProductId)?.quantity || 1} value={reserveQuantity} onChange={event => setReserveQuantity(Number(event.target.value))} required /></div>
           </div>
+          <div className="form-group"><label htmlFor="reserve-area">Item location</label><select id="reserve-area" className="form-select" value={reserveLocationId} onChange={event => setReserveLocationId(event.target.value)} required>{locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}</select></div>
+          <div className="form-row">
+            <div className="form-group"><label htmlFor="reserve-review">Customer review date</label><input id="reserve-review" className="form-input" type="datetime-local" value={reserveReviewAt} onChange={event => setReserveReviewAt(event.target.value)} required /></div>
+            <div className="form-group"><label htmlFor="reserve-until">Agreed collection or delivery date</label><input id="reserve-until" className="form-input" type="datetime-local" value={reserveUntil} onChange={event => setReserveUntil(event.target.value)} required /></div>
+          </div>
+          <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setSelectedOrderForReserve(null)}>Cancel</button><button type="submit" className="btn btn-primary">Place deposit reservation</button></div>
+        </form>}
+      </Modal>
+
+      <Modal isOpen={selectedOrderForDispatch !== null} onClose={() => setSelectedOrderForDispatch(null)} title={`Dispatch ${selectedOrderForDispatch?.orderNumber || ''}`}>
+        {selectedOrderForDispatch && (
+          <form onSubmit={handleDispatch}>
+            <p className="form-note">Finance has confirmed the full order balance. Dispatch deducts physical stock once; the signed delivery receipt is recorded separately.</p>
+            {actionError && <div className="form-error" role="alert">{actionError}</div>}
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="dispatch-item">Item to dispatch</label>
+                <select id="dispatch-item" className="form-select" value={dispatchLineId} onChange={event => { setDispatchLineId(event.target.value); setDispatchQuantity(1); }} required>
+                  {selectedOrderForDispatch.lines.filter(line => remainingToDispatch(selectedOrderForDispatch, line.id, deliveries) > 0).map(line => (
+                    <option key={line.id} value={line.id}>{products.find(product => product.id === line.productId)?.name} · {remainingToDispatch(selectedOrderForDispatch, line.id, deliveries)} remaining</option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label htmlFor="dispatch-quantity">Quantity</label>
+                <input id="dispatch-quantity" className="form-input" type="number" min="1" max={remainingToDispatch(selectedOrderForDispatch, dispatchLineId, deliveries)} value={dispatchQuantity} onChange={event => setDispatchQuantity(Number(event.target.value))} required />
+              </div>
+            </div>
+            <div className="form-group">
+              <label htmlFor="dispatch-area">Release from</label>
+              <select id="dispatch-area" className="form-select" value={dispatchLocationId} onChange={event => setDispatchLocationId(event.target.value)} required>
+                {locations.map(location => <option key={location.id} value={location.id}>{location.name}</option>)}
+              </select>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label htmlFor="dispatch-recipient">Intended recipient</label>
+                <input id="dispatch-recipient" className="form-input" value={intendedRecipient} onChange={event => setIntendedRecipient(event.target.value)} required />
+              </div>
+              <div className="form-group">
+                <label htmlFor="dispatch-address">Delivery address</label>
+                <input id="dispatch-address" className="form-input" value={deliveryAddress} onChange={event => setDeliveryAddress(event.target.value)} required />
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-secondary" onClick={() => setSelectedOrderForDispatch(null)}>Cancel</button>
+              <button type="submit" className="btn btn-primary">Record dispatch</button>
+            </div>
+          </form>
         )}
       </Modal>
     </div>

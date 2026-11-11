@@ -1,23 +1,52 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useErp } from '../context/ErpContext';
-import { BookmarkCheck, Clock, XCircle, CheckCircle2 } from 'lucide-react';
+import { BookmarkCheck, Clock, XCircle } from 'lucide-react';
+import { Reservation } from '../types';
+import { Modal } from '../components/Modal';
 
 export const ReservationsView: React.FC = () => {
-  const { reservations, products, locations, releaseReservation, fulfilOrder, canPerform } =
+  const { reservations, orders, products, locations, releaseReservation, extendReservation, canPerform } =
     useErp();
+  const [selected, setSelected] = useState<Reservation | null>(null);
+  const [reviewAt, setReviewAt] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
+  const [reason, setReason] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const pendingActionRef = useRef(false);
+  useEffect(() => { pendingActionRef.current = false; }, [reservations]);
+
+  const openExtension = (reservation: Reservation) => {
+    setSelected(reservation);
+    setReviewAt('');
+    setExpiresAt('');
+    setReason('');
+    setError(null);
+  };
+
+  const saveExtension = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selected) return;
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = true;
+    try {
+      extendReservation({ reservationId: selected.id, reviewAt, expiresAt, reason });
+      setSelected(null);
+      setError(null);
+    } catch (caught: unknown) {
+      pendingActionRef.current = false;
+      setError(caught instanceof Error ? caught.message : 'Could not extend this reservation.');
+    }
+  };
 
   const handleRelease = (resId: string) => {
-    const reason = prompt('Please enter reason for releasing this reservation hold:', 'Client cancelled inquiry');
-    if (reason) {
-      try {
-        releaseReservation({ reservationId: resId, reason });
-      } catch (err: unknown) {
-        if (err instanceof Error) {
-          alert(err.message);
-        } else {
-          alert('Release failed.');
-        }
-      }
+    if (pendingActionRef.current) return;
+    pendingActionRef.current = true;
+    try {
+      releaseReservation({ reservationId: resId, reason: 'Unpaid legacy hold released after staff review' });
+      setError(null);
+    } catch (caught: unknown) {
+      pendingActionRef.current = false;
+      setError(caught instanceof Error ? caught.message : 'Could not release this reservation.');
     }
   };
 
@@ -27,10 +56,11 @@ export const ReservationsView: React.FC = () => {
         <div className="view-title-group">
           <h1>Customer Stock Reservations (Holds)</h1>
           <p>
-            Time-bound allocations protecting inventory against double-selling during showroom negotiations.
+            Deposit-backed allocations with customer review and agreed collection dates.
           </p>
         </div>
       </div>
+      {error && <div className="form-error" role="alert">{error}</div>}
 
       {/* Invariant Alert */}
       <div
@@ -64,7 +94,7 @@ export const ReservationsView: React.FC = () => {
                 <th>Reserved Item (SKU)</th>
                 <th>Holding Area</th>
                 <th style={{ textAlign: 'center' }}>Quantity</th>
-                <th>Expiration Deadline</th>
+                <th>Customer review / collection</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
@@ -73,7 +103,8 @@ export const ReservationsView: React.FC = () => {
               {reservations.map((r) => {
                 const prod = products.find((p) => p.id === r.productId);
                 const loc = locations.find((l) => l.id === r.locationId);
-                const isExpired = new Date(r.expiresAt).getTime() < Date.now();
+                const isExpired = new Date(r.reviewAt || r.expiresAt).getTime() < Date.now();
+                const hasDeposit = (orders.find(order => order.id === r.orderId)?.paidAmount || 0) > 0;
 
                 return (
                   <tr key={r.id}>
@@ -95,9 +126,10 @@ export const ReservationsView: React.FC = () => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <Clock size={14} color={isExpired ? 'var(--color-danger-text)' : 'var(--color-accent-text)'} />
                         <span style={{ color: isExpired ? 'var(--color-danger-text)' : 'inherit' }}>
-                          {new Date(r.expiresAt).toLocaleString()}
+                          Review: {new Date(r.reviewAt || r.expiresAt).toLocaleString()}
                         </span>
                       </div>
+                      <div>Agreed date: {new Date(r.expiresAt).toLocaleString()}</div>
                     </td>
                     <td style={{ textAlign: 'center' }}>
                       <span
@@ -118,25 +150,13 @@ export const ReservationsView: React.FC = () => {
                           <button
                             className="btn btn-secondary btn-sm"
                             onClick={() => handleRelease(r.id)}
-                            disabled={!canPerform('release_reservation')}
-                            title="Release stock hold immediately"
+                            disabled={!canPerform('release_reservation') || hasDeposit}
+                            title={hasDeposit ? 'Finance must refund and cancel a paid reservation from Orders' : 'Release an unpaid legacy hold'}
                           >
                             <XCircle size={13} color="var(--color-danger-text)" />
                             <span>Release</span>
                           </button>
-                          <button
-                            className="btn btn-primary btn-sm"
-                            onClick={() => {
-                              if (confirm(`Convert reservation to sale and deduct physical stock?`)) {
-                                fulfilOrder(r.orderId);
-                              }
-                            }}
-                            disabled={!canPerform('fulfil_order')}
-                            title="Fulfil order"
-                          >
-                            <CheckCircle2 size={13} />
-                            <span>Fulfil</span>
-                          </button>
+                          <button className="btn btn-primary btn-sm" onClick={() => openExtension(r)} disabled={!canPerform('create_reservation')} title="Record a new date after discussion with the customer">Extend</button>
                         </div>
                       )}
                     </td>
@@ -147,6 +167,18 @@ export const ReservationsView: React.FC = () => {
           </table>
         </div>
       </div>
+      <Modal isOpen={selected !== null} onClose={() => setSelected(null)} title={`Extend reservation · ${selected?.orderNumber || ''}`}>
+        {selected && <form onSubmit={saveExtension}>
+          <p className="form-note">Discuss the new dates with the customer before saving. The item remains reserved until it is dispatched or the order is cancelled.</p>
+          {error && <div className="form-error" role="alert">{error}</div>}
+          <div className="form-row">
+            <div className="form-group"><label htmlFor="extension-review">Next review date</label><input id="extension-review" className="form-input" type="datetime-local" value={reviewAt} onChange={event => setReviewAt(event.target.value)} required /></div>
+            <div className="form-group"><label htmlFor="extension-collection">New collection or delivery date</label><input id="extension-collection" className="form-input" type="datetime-local" value={expiresAt} onChange={event => setExpiresAt(event.target.value)} required /></div>
+          </div>
+          <div className="form-group"><label htmlFor="extension-reason">Customer discussion / reason</label><textarea id="extension-reason" className="form-textarea" value={reason} onChange={event => setReason(event.target.value)} required /></div>
+          <div className="modal-actions"><button type="button" className="btn btn-secondary" onClick={() => setSelected(null)}>Cancel</button><button type="submit" className="btn btn-primary">Save extension</button></div>
+        </form>}
+      </Modal>
     </div>
   );
 };

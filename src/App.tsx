@@ -12,9 +12,12 @@ import { PaymentsView } from './views/PaymentsView';
 import { ExceptionsView } from './views/ExceptionsView';
 import { AuditView } from './views/AuditView';
 import { WebsiteFeedInspectorView } from './views/WebsiteFeedInspectorView';
+import { DeliveriesView } from './views/DeliveriesView';
 import './styles.css';
+import { isLiveBackendAvailable } from './lib/supabase';
+import { LiveApp } from './live/LiveApp';
 
-const validViews = new Set(['dashboard', 'catalogue', 'inventory', 'operations', 'orders', 'reservations', 'payments', 'exceptions', 'audit', 'website_feed']);
+const validViews = new Set(['dashboard', 'catalogue', 'inventory', 'operations', 'orders', 'reservations', 'payments', 'deliveries', 'exceptions', 'audit', 'website_feed']);
 
 function viewFromHash(): string {
   const view = window.location.hash.slice(1);
@@ -71,6 +74,7 @@ export const AppContent: React.FC = () => {
           {currentView === 'orders' && <OrdersView />}
           {currentView === 'reservations' && <ReservationsView />}
           {currentView === 'payments' && <PaymentsView />}
+          {currentView === 'deliveries' && <DeliveriesView />}
           {currentView === 'exceptions' && <ExceptionsView />}
           {currentView === 'audit' && <AuditView />}
           {currentView === 'website_feed' && <WebsiteFeedInspectorView />}
@@ -81,6 +85,7 @@ export const AppContent: React.FC = () => {
 };
 
 export default function App() {
+  if (isLiveBackendAvailable()) return <LiveApp />;
   return (
     <ErpProvider>
       <AppContent />

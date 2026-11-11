@@ -1,0 +1,56 @@
+.live-app { min-height: 100vh; background: var(--color-bg-app); }
+.live-header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 22px clamp(20px, 4vw, 60px); background: var(--color-primary-dark); color: #fff; }
+.live-header h1 { font: 500 clamp(1.8rem, 3vw, 2.7rem)/1.15 var(--font-serif); margin: 2px 0 5px; }
+.live-header span { color: #e3e9e0; font-size: .85rem; }
+.live-eyebrow { text-transform: uppercase; letter-spacing: .16em; font-size: .68rem; font-weight: 700; color: var(--color-accent-text); }
+.live-header .live-eyebrow { color: var(--color-accent); }
+.live-user { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; font-size: .85rem; }
+.live-user button { margin-top: 6px; color: #fff; background: transparent; border: 1px solid #829285; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.live-nav { display: flex; gap: 4px; overflow-x: auto; padding: 0 clamp(20px, 4vw, 60px); border-bottom: 1px solid var(--color-border); background: #fff; }
+.live-nav button { border: 0; border-bottom: 3px solid transparent; background: transparent; padding: 14px 17px; cursor: pointer; color: var(--color-text-muted); font: inherit; font-weight: 600; white-space: nowrap; }
+.live-nav button[aria-current="page"] { border-bottom-color: var(--color-accent-text); color: var(--color-primary); }
+.live-main { max-width: 1460px; margin: 0 auto; padding: 28px clamp(20px, 4vw, 60px) 70px; }
+.live-section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.live-section-head h2 { font: 500 2rem/1.2 var(--font-serif); }
+.live-section-head button, .live-actions button, .live-item-row button, .live-card button, .live-center button { background: #fff; color: var(--color-primary); border: 1px solid var(--color-border-dark); border-radius: 7px; padding: 9px 14px; font: inherit; font-size: .87rem; font-weight: 600; cursor: pointer; }
+.live-card button.live-primary, .live-primary { background: var(--color-primary-dark); color: #fff; border: 1px solid var(--color-primary-dark); border-radius: 7px; padding: 10px 16px; font: inherit; font-weight: 600; cursor: pointer; }
+.live-app button:hover:not(:disabled), .live-auth button:hover:not(:disabled) { filter: brightness(.92); }
+.live-app button:disabled, .live-auth button:disabled { opacity: .5; cursor: not-allowed; }
+.live-card { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow-sm); padding: 22px; margin-bottom: 20px; min-width: 0; }
+.live-card h3 { font: 500 1.35rem/1.25 var(--font-serif); margin-bottom: 16px; }
+.live-card h4 { margin: 24px 0 10px; }
+.live-card form { display: grid; gap: 13px; }
+.live-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; }
+.live-grid > .live-card { align-self: start; }
+.live-field { display: flex; flex-direction: column; gap: 5px; font-size: .83rem; color: var(--color-text-muted); font-weight: 600; min-width: 0; }
+.live-field input, .live-field select { display: block; width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--color-border-dark); border-radius: 7px; background: #fff; color: var(--color-text-main); font: 400 .92rem var(--font-sans); }
+.live-field input:focus, .live-field select:focus, .live-app button:focus-visible, .live-auth button:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 2px; }
+.live-table-wrap { overflow-x: auto; }
+.live-card table { width: 100%; border-collapse: collapse; font-size: .85rem; text-align: left; }
+.live-card th { color: var(--color-text-muted); font-weight: 700; background: var(--color-bg-subtle); }
+.live-card td, .live-card th { padding: 11px 12px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+.live-card tr:last-child td { border-bottom: 0; }
+.live-card td button { white-space: nowrap; }
+.live-empty, .live-hint { color: var(--color-text-muted); font-size: .9rem; }
+.live-hint { margin-bottom: 14px; }
+.live-note, .live-error, .live-success { padding: 12px 15px; border-radius: 7px; margin-bottom: 20px; font-size: .9rem; }
+.live-note { background: var(--color-info-bg); color: var(--color-info-text); }
+.live-error { background: var(--color-danger-bg); color: var(--color-danger-text); }
+.live-success { background: var(--color-success-bg); color: var(--color-success-text); }
+.live-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 20px; }
+.live-metrics article { background: #fff; border: 1px solid var(--color-border); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 5px; }
+.live-metrics span { color: var(--color-text-muted); font-size: .82rem; }
+.live-metrics strong { font: 500 1.9rem var(--font-serif); }
+.live-steps { padding-left: 24px; display: grid; gap: 7px; }
+.live-items { display: grid; gap: 10px; margin: 8px 0; }
+.live-item-row { display: grid; grid-template-columns: minmax(0, 3fr) minmax(100px, 1fr) auto; gap: 10px; align-items: end; }
+.live-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.live-auth, .live-center { min-height: 100vh; display: grid; place-content: center; padding: 24px; }
+.live-auth-card { width: min(100%, 410px); background: #fff; padding: 34px; border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow-md); }
+.live-auth-card h1, .live-center h1 { font: 500 2rem var(--font-serif); margin-bottom: 10px; }
+.live-auth-card > p:not(.live-eyebrow) { color: var(--color-text-muted); margin-bottom: 22px; }
+.live-auth-card form { display: grid; gap: 14px; }
+.live-auth-card .live-text-button { display: inline-block; margin-top: 16px; padding: 2px 0; border: 0; background: transparent; color: var(--color-primary); font: 600 .88rem var(--font-sans); text-align: left; text-decoration: underline; cursor: pointer; }
+.live-auth-card .live-error { margin: 18px 0 0; }
+@media (max-width: 900px) { .live-grid { grid-template-columns: 1fr; } .live-metrics { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .live-header { align-items: flex-start; } .live-header span { display: none; } .live-main { padding-top: 22px; } .live-section-head h2 { font-size: 1.65rem; } .live-metrics { gap: 9px; } .live-metrics article { padding: 13px; } .live-item-row { grid-template-columns: 1fr 90px; } .live-item-row button { grid-column: 1 / -1; } .live-card { padding: 16px; } }

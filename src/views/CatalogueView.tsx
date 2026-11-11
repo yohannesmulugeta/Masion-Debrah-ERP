@@ -104,10 +104,9 @@ export const CatalogueView: React.FC = () => {
     <div>
       <div className="view-header">
         <div className="view-title-group">
-          <h1>Maison Debrah Official Catalogue</h1>
+          <h1>Products & local prices</h1>
           <p>
-            Centrally governed product information: unique SKUs, specifications, dimensions, and
-            approved photography.
+            Manage the local product list, prices, specifications, and photography used by this operation.
           </p>
         </div>
         <div className="view-actions">
@@ -123,7 +122,7 @@ export const CatalogueView: React.FC = () => {
             title={
               !canPerform('import_catalogue')
                 ? 'Only Admin and Managers can import catalogue batches'
-                : 'Import HQ product records'
+                : 'Review a product import batch'
             }
           >
             <Upload size={15} />
@@ -151,9 +150,8 @@ export const CatalogueView: React.FC = () => {
       >
         <Info size={20} color="var(--color-accent-text)" style={{ flexShrink: 0 }} />
         <div>
-          <strong>HQ Single Source of Truth:</strong> Product codes and specifications are
-          controlled by Maison Debrah HQ. Stock availability and pricing within Ethiopia are managed
-          locally. The public website matches inventory strictly by official SKU.
+          <strong>Local product records:</strong> Keep product codes unique and review prices before use.
+          Stock availability is tracked separately by Warehouse and Showroom 1–3. The website feed matches items by SKU.
         </div>
       </div>
 
@@ -364,16 +362,16 @@ export const CatalogueView: React.FC = () => {
       <Modal
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
-        title="HQ Catalogue Import & Validation Engine"
+        title="Product import review"
       >
         <div>
           <div style={{ fontSize: '0.82rem', color: 'var(--color-text-muted)', marginBottom: '14px' }}>
             Demo only: paste product JSON, review every validation error, then import valid rows into this browser.
-            This is not an HQ catalogue connection.
+            Import valid rows only after checking them against the approved local product list.
           </div>
 
           <div className="form-group">
-            <label htmlFor="catalogue-json">JSON Catalogue Payload (HQ Source)</label>
+            <label htmlFor="catalogue-json">Product JSON to review</label>
             <textarea
               id="catalogue-json"
               className="form-textarea"

@@ -46,6 +46,7 @@ export type MovementType =
   | 'sale_fulfilment'
   | 'count_adjustment'
   | 'quarantine_damage'
+  | 'delivery_return_quarantine'
   | 'warranty_return';
 
 export interface StockMovement {
@@ -67,6 +68,7 @@ export type OrderStatus =
   | 'confirmed'
   | 'partially_paid'
   | 'paid'
+  | 'partially_dispatched'
   | 'dispatched'
   | 'delivered'
   | 'cancelled';
@@ -120,7 +122,28 @@ export interface Reservation {
   quantity: number;
   status: 'active' | 'fulfilled' | 'cancelled' | 'expired';
   expiresAt: string;
+  reviewAt?: string;
   createdAt: string;
+}
+
+export interface DeliveryRecord {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  lineId: string;
+  productId: string;
+  quantity: number;
+  sourceLocationId: string;
+  deliveryAddress: string;
+  intendedRecipient: string;
+  status: 'dispatched' | 'delivered' | 'failed' | 'returned_for_review';
+  dispatchedAt: string;
+  dispatchedBy: string;
+  signedBy?: string;
+  signedAt?: string;
+  signedReference?: string;
+  failureReason?: string;
+  returnedAt?: string;
 }
 
 export type PaymentMethod = 'cash' | 'telebirr' | 'cbe_birr' | 'bank_transfer' | 'card';
@@ -134,6 +157,17 @@ export interface Payment {
   paymentMethod: PaymentMethod;
   referenceNo: string;
   notes?: string;
+  recordedBy: string;
+  createdAt: string;
+}
+
+export interface RefundRecord {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  amount: number;
+  referenceNo: string;
+  reason: string;
   recordedBy: string;
   createdAt: string;
 }

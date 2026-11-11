@@ -298,7 +298,7 @@ export const INITIAL_ORDERS: SalesOrder[] = [
     customerName: 'Demo Customer 2',
     customerPhone: '000-000-0002',
     locationId: 'loc-kazanchis',
-    status: 'reserved',
+    status: 'partially_paid',
     lines: [
       {
         id: 'line-2',
@@ -313,9 +313,9 @@ export const INITIAL_ORDERS: SalesOrder[] = [
     discountAmount: 0,
     taxAmount: 0,
     totalAmount: 390000,
-    paidAmount: 0,
-    balanceDue: 390000,
-    notes: '48-hour reservation hold on Monolith Travertine Table',
+    paidAmount: 90000,
+    balanceDue: 300000,
+    notes: 'Deposit reservation awaiting customer discussion',
     createdBy: 'Demo Sales Consultant',
     createdAt: '2026-11-04T16:45:00Z',
   },
@@ -331,6 +331,7 @@ export const INITIAL_RESERVATIONS: Reservation[] = [
     quantity: 1,
     status: 'active',
     expiresAt: '2026-11-08T18:00:00Z',
+    reviewAt: '2026-11-07T18:00:00Z',
     createdAt: '2026-11-04T11:25:00Z',
   },
   {
@@ -342,11 +343,24 @@ export const INITIAL_RESERVATIONS: Reservation[] = [
     quantity: 1,
     status: 'active',
     expiresAt: '2026-11-06T18:00:00Z',
+    reviewAt: '2026-11-06T09:00:00Z',
     createdAt: '2026-11-04T16:50:00Z',
   },
 ];
 
 export const INITIAL_PAYMENTS: Payment[] = [
+  {
+    id: 'pay-002',
+    orderId: 'ord-1002',
+    orderNumber: 'MD-ORD-2026-1002',
+    amount: 90000,
+    currency: 'ETB',
+    paymentMethod: 'bank_transfer',
+    referenceNo: 'DEMO-DEPOSIT-002',
+    notes: 'Sample reservation deposit',
+    recordedBy: 'Demo Finance Clerk',
+    createdAt: '2026-11-04T17:00:00Z',
+  },
   {
     id: 'pay-001',
     orderId: 'ord-1001',
@@ -368,7 +382,7 @@ export const INITIAL_MOVEMENTS: StockMovement[] = [
     destLocationId: 'loc-wh',
     movementType: 'receipt',
     quantity: 5,
-    referenceNo: 'MD-HQ-IMPORT-2026-01',
+    referenceNo: 'MD-OPENING-STOCK-2026-01',
     reason: 'Demo opening stock setup',
     createdBy: 'Demo Stock Clerk',
     createdAt: '2026-11-02T09:00:00Z',

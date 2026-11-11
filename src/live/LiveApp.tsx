@@ -1,0 +1,245 @@
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
+import type { Enums, Tables } from '../types/database.generated';
+import './live.css';
+
+type Profile = Tables<'staff_profiles'>;
+type Location = Tables<'locations'>;
+type Product = Tables<'products'>;
+type Balance = Tables<'stock_balances'>;
+type Order = Tables<'sales_orders'>;
+type Line = Tables<'sales_order_lines'>;
+type Customer = Tables<'customers'>;
+type Reservation = Tables<'reservations'>;
+type Delivery = Tables<'deliveries'>;
+type Payment = Tables<'payments'>;
+type Refund = Tables<'refunds'>;
+type Tab = 'overview' | 'products' | 'stock' | 'orders' | 'reservations' | 'deliveries' | 'finance';
+type Data = {
+  locations: Location[]; products: Product[]; balances: Balance[];
+  orders: Order[]; lines: Line[]; customers: Customer[];
+  reservations: Reservation[]; deliveries: Delivery[];
+  payments: Payment[]; refunds: Refund[];
+};
+
+const emptyData: Data = { locations: [], products: [], balances: [], orders: [], lines: [], customers: [], reservations: [], deliveries: [], payments: [], refunds: [] };
+const money = (value: number | null | undefined) => `${Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
+const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString() : '—';
+const value = (form: HTMLFormElement, key: string) => String(new FormData(form).get(key) ?? '').trim();
+const int = (form: HTMLFormElement, key: string) => Number(value(form, key));
+const dateTime = (form: HTMLFormElement, key: string) => new Date(value(form, key)).toISOString();
+
+async function readData(): Promise<Data> {
+  if (!supabase) throw new Error('Live backend is not configured');
+  const results = await Promise.all([
+    supabase.from('locations').select('*').order('code'),
+    supabase.from('products').select('*').order('name'),
+    supabase.from('stock_balances').select('*'),
+    supabase.from('sales_orders').select('*').order('created_at', { ascending: false }),
+    supabase.from('sales_order_lines').select('*'),
+    supabase.from('customers').select('*'),
+    supabase.from('reservations').select('*').order('created_at', { ascending: false }),
+    supabase.from('deliveries').select('*').order('created_at', { ascending: false }),
+    supabase.from('payments').select('*').order('created_at', { ascending: false }),
+    supabase.from('refunds').select('*').order('created_at', { ascending: false }),
+  ] as const);
+  const failure = results.find(result => result.error);
+  if (failure?.error) throw failure.error;
+  return {
+    locations: results[0].data ?? [], products: results[1].data ?? [],
+    balances: results[2].data ?? [], orders: results[3].data ?? [],
+    lines: results[4].data ?? [], customers: results[5].data ?? [],
+    reservations: results[6].data ?? [], deliveries: results[7].data ?? [],
+    payments: results[8].data ?? [], refunds: results[9].data ?? [],
+  };
+}
+
+function Field({ label, name, type = 'text', required = true, min, step, placeholder, defaultValue }: {
+  label: string; name: string; type?: string; required?: boolean; min?: string; step?: string; placeholder?: string; defaultValue?: string;
+}) {
+  return <label className="live-field"><span>{label}</span><input name={name} type={type} required={required} min={min} step={step} placeholder={placeholder} defaultValue={defaultValue} /></label>;
+}
+
+function Select({ label, name, options, required = true }: {
+  label: string; name: string; options: { value: string; label: string }[]; required?: boolean;
+}) {
+  return <label className="live-field"><span>{label}</span><select name={name} required={required} defaultValue=""><option value="" disabled>Choose…</option>{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
+}
+
+export function LiveApp() {
+  useEffect(() => { document.title = 'Maison Debrah ERP | Staff'; }, []);
+  const [passwordSetup, setPasswordSetup] = useState(() => new URLSearchParams(window.location.search).get('setup') === '1');
+  const [resetMode, setResetMode] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [data, setData] = useState<Data>(emptyData);
+  const [tab, setTab] = useState<Tab>('overview');
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [linkExpired] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get('error_code') === 'otp_expired');
+  const [orderItems, setOrderItems] = useState([{ product_id: '', quantity: 1 }]);
+  const client = supabase;
+
+  const refresh = useCallback(async () => { setData(await readData()); }, []);
+  useEffect(() => {
+    if (!client) { setLoading(false); return; }
+    client.auth.getSession().then(({ data: current, error: authError }) => {
+      if (authError) setError(authError.message);
+      setSession(current.session); setLoading(false);
+    });
+    const { data: subscription } = client.auth.onAuthStateChange((_event, next) => setSession(next));
+    return () => subscription.subscription.unsubscribe();
+  }, [client]);
+  useEffect(() => {
+    if (!client || !session) { setProfile(null); setData(emptyData); return; }
+    setLoading(true);
+    void (async () => {
+      try {
+        const { data: staff, error: profileError } = await client.from('staff_profiles').select('*').eq('id', session.user.id).maybeSingle();
+        if (profileError) throw profileError;
+        setProfile(staff);
+        if (staff?.is_active) await refresh();
+      } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+      finally { setLoading(false); }
+    })();
+  }, [client, session, refresh]);
+
+  const names = useMemo(() => ({
+    product: new Map(data.products.map(item => [item.id, `${item.sku} · ${item.name}`])),
+    location: new Map(data.locations.map(item => [item.id, item.name])),
+    customer: new Map(data.customers.map(item => [item.id, item.full_name])),
+    order: new Map(data.orders.map(item => [item.id, item.order_number])),
+  }), [data]);
+  const productOptions = data.products.filter(item => item.is_active).map(item => ({ value: item.id, label: `${item.sku} · ${item.name}` }));
+  const locationOptions = data.locations.filter(item => item.is_active).map(item => ({ value: item.id, label: item.name }));
+  const showroomOptions = data.locations.filter(item => item.is_active && item.type === 'showroom').map(item => ({ value: item.id, label: item.name }));
+  const openOrders = data.orders.filter(order => order.status !== 'cancelled' && order.status !== 'delivered');
+  const orderOptions = openOrders.map(order => ({ value: order.id, label: `${order.order_number} · ${names.customer.get(order.customer_id) ?? 'Customer'} · ${money(order.balance_due)}` }));
+  const lineOptions = data.lines.filter(line => openOrders.some(order => order.id === line.order_id)).map(line => ({ value: line.id, label: `${names.order.get(line.order_id)} · ${names.product.get(line.product_id)} · ${line.quantity} item(s)` }));
+  const role = profile?.role;
+  const canSales = role === 'admin' || role === 'manager' || role === 'showroom_sales';
+  const canStock = role === 'admin' || role === 'manager' || role === 'stock_clerk';
+  const canFinance = role === 'finance';
+
+  async function perform(task: () => PromiseLike<{ error: { message: string } | null }>, success: string, form?: HTMLFormElement): Promise<boolean> {
+    if (busy) return false;
+    setBusy(true); setError(''); setMessage('');
+    try {
+      const result = await task();
+      if (result.error) throw new Error(result.error.message);
+      await refresh();
+      form?.reset();
+      setMessage(success);
+      return true;
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); return false; }
+    finally { setBusy(false); }
+  }
+  function submit(task: (form: HTMLFormElement) => PromiseLike<{ error: { message: string } | null }>, success: string) {
+    return (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      void perform(() => task(form), success, form);
+    };
+  }
+  async function signIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!client) return;
+    const form = event.currentTarget;
+    setBusy(true); setError('');
+    const { error: authError } = await client.auth.signInWithPassword({ email: value(form, 'email'), password: value(form, 'password') });
+    if (authError) setError(authError.message);
+    else {
+      setPasswordSetup(false);
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+    setBusy(false);
+  }
+  async function requestPasswordReset(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!client) return;
+    const email = value(event.currentTarget, 'email');
+    const redirectTo = new URL(window.location.pathname, window.location.origin);
+    redirectTo.searchParams.set('setup', '1');
+    setBusy(true); setError(''); setMessage('');
+    const { error: resetError } = await client.auth.resetPasswordForEmail(email, { redirectTo: redirectTo.toString() });
+    if (resetError) setError(resetError.message);
+    else setMessage('If this is your staff account, a new password setup link is on its way. Open the newest email once.');
+    setBusy(false);
+  }
+  async function finishPasswordSetup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); if (!client) return;
+    const form = event.currentTarget;
+    const password = value(form, 'password');
+    if (password.length < 12 || password !== value(form, 'confirmation')) {
+      setError('Use at least 12 characters and enter the same password twice.');
+      return;
+    }
+    setBusy(true); setError('');
+    const { error: updateError } = await client.auth.updateUser({ password });
+    if (updateError) setError(updateError.message);
+    else {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('setup');
+      window.history.replaceState(null, '', url.pathname + url.search);
+      form.reset();
+      setPasswordSetup(false);
+      setMessage('Password set. Your staff account is ready.');
+    }
+    setBusy(false);
+  }
+
+  if (!client) return <div className="live-center">Live backend configuration is missing.</div>;
+  if (loading) return <div className="live-center" role="status">Loading Maison Debrah ERP…</div>;
+  if (!session) return <main className="live-auth"><div className="live-auth-card"><p className="live-eyebrow">Maison Debrah</p><h1>{resetMode ? 'Set or reset your password' : 'ERP staff sign in'}</h1><p>{resetMode ? 'Enter your assigned staff email. We will send a new setup link.' : 'Use your assigned staff account. Operational records are shared across the building.'}</p>{linkExpired && !resetMode && <p className="live-error" role="alert">That email link has expired or was already used. Request a new password setup link below.</p>}{resetMode ? <form onSubmit={requestPasswordReset}><Field label="Staff email" name="email" type="email" /><button className="live-primary" disabled={busy}>Send setup link</button></form> : <form onSubmit={signIn}><Field label="Email" name="email" type="email" /><Field label="Password" name="password" type="password" /><button className="live-primary" disabled={busy}>Sign in</button></form>}<button type="button" className="live-text-button" onClick={() => { setResetMode(!resetMode); setError(''); setMessage(''); }}>{resetMode ? 'Back to sign in' : 'Need to set or reset your password?'}</button>{error && <p className="live-error" role="alert">{error}</p>}{message && <p className="live-success" role="status">{message}</p>}</div></main>;
+  if (passwordSetup) return <main className="live-auth"><div className="live-auth-card"><p className="live-eyebrow">Maison Debrah</p><h1>Set your ERP password</h1><p>Finish setting up your invited staff account.</p><form onSubmit={finishPasswordSetup}><Field label="New password" name="password" type="password" /><Field label="Confirm password" name="confirmation" type="password" /><button className="live-primary" disabled={busy}>Save password</button></form>{error && <p className="live-error" role="alert">{error}</p>}</div></main>;
+  if (!profile?.is_active) return <main className="live-center"><h1>Staff access pending</h1><p>Your account has no active Maison Debrah staff profile. Ask the administrator to assign your role.</p><button onClick={() => void client.auth.signOut()}>Sign out</button></main>;
+
+  return <div className="live-app">
+    <a className="skip-link" href="#live-main">Skip to content</a>
+    <header className="live-header"><div><p className="live-eyebrow">Maison Debrah</p><h1>Operations</h1><span>One building · Warehouse and Showrooms 1–3</span></div><div className="live-user"><strong>{profile.full_name}</strong><span>{profile.role.replace('_', ' ')}</span><button onClick={() => void client.auth.signOut()}>Sign out</button></div></header>
+    <nav className="live-nav" aria-label="Main navigation">{(['overview', 'products', 'stock', 'orders', 'reservations', 'deliveries', 'finance'] as const).map(item => <button key={item} aria-current={tab === item ? 'page' : undefined} onClick={() => { setTab(item); setError(''); setMessage(''); }}>{item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
+    <main id="live-main" className="live-main">
+      {error && <p className="live-error" role="alert">{error}</p>}{message && <p className="live-success" role="status">{message}</p>}
+      <div className="live-section-head"><div><p className="live-eyebrow">Live shared database</p><h2>{tab[0].toUpperCase() + tab.slice(1)}</h2></div><button onClick={() => void refresh().catch(cause => setError(String(cause)))} disabled={busy}>Refresh data</button></div>
+
+      {tab === 'overview' && <>
+        <div className="live-metrics"><article><span>Active products</span><strong>{data.products.filter(item => item.is_active).length}</strong></article><article><span>Open orders</span><strong>{openOrders.length}</strong></article><article><span>Reservations due for review</span><strong>{data.reservations.filter(item => item.status === 'active' && item.review_at && new Date(item.review_at) <= new Date()).length}</strong></article><article><span>Out for delivery</span><strong>{data.deliveries.filter(item => item.delivery_status === 'out_for_delivery').length}</strong></article></div>
+        <section className="live-card"><h3>Today’s workflow</h3><ol className="live-steps"><li>Sales agrees the exact product and creates the order.</li><li>Finance records a deposit or the full payment.</li><li>Sales reserves stock after a deposit, if collection is later.</li><li>Stock dispatches only when the entire order is paid.</li><li>The recipient signs at handover; staff record the signature reference.</li></ol></section>
+        {data.products.length === 0 && <p className="live-note">No approved products or opening stock have been loaded. The system is ready for data onboarding, but no customer order should be entered yet.</p>}
+      </>}
+
+      {tab === 'products' && <>
+        {(role === 'admin' || role === 'manager') && <div className="live-grid"><section className="live-card"><h3>Add approved product</h3><form onSubmit={submit(form => client.rpc('erp_create_product', { p_sku: value(form, 'sku'), p_name: value(form, 'name'), p_category: value(form, 'category'), p_local_price: int(form, 'price'), p_description: value(form, 'description') || undefined }), 'Product created.')}><Field label="SKU" name="sku" /><Field label="Product name" name="name" /><Field label="Category" name="category" /><Field label="Approved local price in ETB" name="price" type="number" min="0.01" step="0.01" /><Field label="Description" name="description" required={false} /><button className="live-primary" disabled={busy}>Create product</button></form></section><section className="live-card"><h3>Change local price</h3><p className="live-hint">Existing order prices stay as recorded. This change is logged with a reason.</p><form onSubmit={submit(form => client.rpc('erp_update_product_price', { p_product_id: value(form, 'product'), p_local_price: int(form, 'price'), p_reason: value(form, 'reason') }), 'Approved price updated.')}><Select label="Product" name="product" options={productOptions} /><Field label="New approved price in ETB" name="price" type="number" min="0.01" step="0.01" /><Field label="Reason" name="reason" /><button className="live-primary" disabled={busy || !productOptions.length}>Update price</button></form></section></div>}
+        <section className="live-card"><h3>Local product register</h3>{data.products.length === 0 ? <p className="live-empty">No approved products loaded yet.</p> : <div className="live-table-wrap"><table><thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Approved price</th><th>Active</th></tr></thead><tbody>{data.products.map(item => <tr key={item.id}><td>{item.sku}</td><td>{item.name}</td><td>{item.category}</td><td>{money(item.local_price)}</td><td>{item.is_active ? 'Yes' : 'No'}</td></tr>)}</tbody></table></div>}</section>
+      </>}
+
+      {tab === 'stock' && <>
+        <section className="live-card"><h3>Stock by area</h3>{data.balances.length === 0 ? <p className="live-empty">No opening stock has been posted.</p> : <div className="live-table-wrap"><table><thead><tr><th>Product</th><th>Area</th><th>On hand</th><th>Reserved</th><th>Available</th><th>Quarantine</th></tr></thead><tbody>{data.balances.map(item => <tr key={`${item.product_id}-${item.location_id}`}><td>{names.product.get(item.product_id)}</td><td>{names.location.get(item.location_id)}</td><td>{item.sellable_on_hand}</td><td>{item.active_reserved}</td><td>{item.sellable_on_hand - item.active_reserved}</td><td>{item.quarantine_count}</td></tr>)}</tbody></table></div>}</section>
+        {canStock && <div className="live-grid"><section className="live-card"><h3>Receive at Warehouse</h3><form onSubmit={submit(form => client.rpc('erp_post_receipt', { p_product_id: value(form, 'product'), p_quantity: int(form, 'quantity'), p_reference: value(form, 'reference'), p_reason: value(form, 'reason') }), 'Receipt posted.')}><Select label="Product" name="product" options={productOptions} /><Field label="Quantity" name="quantity" type="number" min="1" step="1" /><Field label="Supplier / receipt reference" name="reference" /><Field label="Reason" name="reason" /><button className="live-primary" disabled={busy || !productOptions.length}>Post receipt</button></form></section>
+        <section className="live-card"><h3>Transfer between areas</h3><form onSubmit={submit(form => client.rpc('erp_post_transfer', { p_product_id: value(form, 'product'), p_source: value(form, 'source'), p_destination: value(form, 'destination'), p_quantity: int(form, 'quantity'), p_reference: value(form, 'reference'), p_reason: value(form, 'reason') }), 'Transfer posted.')}><Select label="Product" name="product" options={productOptions} /><Select label="From" name="source" options={locationOptions} /><Select label="To" name="destination" options={locationOptions} /><Field label="Quantity" name="quantity" type="number" min="1" step="1" /><Field label="Transfer reference" name="reference" /><Field label="Reason" name="reason" /><button className="live-primary" disabled={busy || !productOptions.length}>Post transfer</button></form></section></div>}
+      </>}
+
+      {tab === 'orders' && <>
+        {canSales && <section className="live-card"><h3>Create customer order</h3><form onSubmit={event => { event.preventDefault(); const form = event.currentTarget; const items = orderItems.filter(item => item.product_id && item.quantity > 0); if (!items.length) { setError('Add at least one product.'); return; } void perform(() => client.rpc('erp_create_order', { p_customer_name: value(form, 'customer'), p_customer_phone: value(form, 'phone'), p_showroom_id: value(form, 'showroom'), p_items: items, p_notes: value(form, 'notes') || undefined }), 'Order created.', form).then(succeeded => { if (succeeded) setOrderItems([{ product_id: '', quantity: 1 }]); }); }}><div className="live-grid"><Field label="Customer name" name="customer" /><Field label="Customer phone" name="phone" /><Select label="Showroom" name="showroom" options={showroomOptions} /><Field label="Notes" name="notes" required={false} /></div><div className="live-items"><strong>Items · approved local prices are applied automatically</strong>{orderItems.map((item, index) => <div className="live-item-row" key={index}><label className="live-field"><span>Product</span><select required value={item.product_id} onChange={event => setOrderItems(current => current.map((entry, position) => position === index ? { ...entry, product_id: event.target.value } : entry))}><option value="">Choose…</option>{productOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="live-field"><span>Quantity</span><input type="number" min="1" step="1" required value={item.quantity} onChange={event => setOrderItems(current => current.map((entry, position) => position === index ? { ...entry, quantity: Number(event.target.value) } : entry))} /></label><button type="button" onClick={() => setOrderItems(current => current.filter((_, position) => position !== index))} disabled={orderItems.length === 1}>Remove</button></div>)}</div><div className="live-actions"><button type="button" onClick={() => setOrderItems(current => [...current, { product_id: '', quantity: 1 }])}>Add item</button><button className="live-primary" disabled={busy || !productOptions.length}>Create order</button></div></form></section>}
+        <section className="live-card"><h3>Orders</h3>{data.orders.length === 0 ? <p className="live-empty">No real orders yet.</p> : <div className="live-table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Status</th><th>Total</th><th>Paid</th><th>Balance</th><th>Created</th></tr></thead><tbody>{data.orders.map(item => <tr key={item.id}><td>{item.order_number}</td><td>{names.customer.get(item.customer_id)}</td><td>{item.status.replaceAll('_', ' ')}</td><td>{money(item.total_amount)}</td><td>{money(item.paid_amount)}</td><td>{money(item.balance_due)}</td><td>{date(item.created_at)}</td></tr>)}</tbody></table></div>}</section>
+      </>}
+
+      {tab === 'reservations' && <>
+        {canSales && <div className="live-grid"><section className="live-card"><h3>Reserve after Finance records a deposit</h3><form onSubmit={submit(form => client.rpc('erp_create_reservation', { p_line_id: value(form, 'line'), p_location_id: value(form, 'location'), p_quantity: int(form, 'quantity'), p_review_at: dateTime(form, 'review'), p_expires_at: dateTime(form, 'collection') }), 'Deposit reservation created.')}><Select label="Order item" name="line" options={lineOptions} /><Select label="Stock area" name="location" options={locationOptions} /><Field label="Quantity" name="quantity" type="number" min="1" step="1" /><Field label="Review with customer" name="review" type="datetime-local" /><Field label="Agreed collection / delivery date" name="collection" type="datetime-local" /><button className="live-primary" disabled={busy || !lineOptions.length}>Reserve stock</button></form></section><section className="live-card"><h3>Extend by agreement</h3><form onSubmit={submit(form => client.rpc('erp_extend_reservation', { p_reservation_id: value(form, 'reservation'), p_review_at: dateTime(form, 'review'), p_expires_at: dateTime(form, 'collection'), p_reason: value(form, 'reason') }), 'Reservation extension recorded.')}><Select label="Active reservation" name="reservation" options={data.reservations.filter(item => item.status === 'active').map(item => ({ value: item.id, label: `${names.order.get(item.order_id)} · ${names.product.get(item.product_id)}` }))} /><Field label="New review date" name="review" type="datetime-local" /><Field label="New collection / delivery date" name="collection" type="datetime-local" /><Field label="Reason agreed with customer" name="reason" /><button className="live-primary" disabled={busy}>Extend reservation</button></form></section></div>}
+        <section className="live-card"><h3>Reservation register</h3>{data.reservations.length === 0 ? <p className="live-empty">No reservations yet.</p> : <div className="live-table-wrap"><table><thead><tr><th>Order</th><th>Product</th><th>Area</th><th>Quantity</th><th>Status</th><th>Review</th><th>Agreed date</th></tr></thead><tbody>{data.reservations.map(item => <tr key={item.id}><td>{names.order.get(item.order_id)}</td><td>{names.product.get(item.product_id)}</td><td>{names.location.get(item.location_id)}</td><td>{item.quantity}</td><td>{item.status}</td><td>{date(item.review_at)}</td><td>{date(item.expires_at)}</td></tr>)}</tbody></table></div>}</section>
+      </>}
+
+      {tab === 'deliveries' && <>
+        {canStock && <div className="live-grid"><section className="live-card"><h3>Dispatch fully paid items</h3><p className="live-hint">The database checks the full order balance before deducting stock.</p><form onSubmit={submit(form => client.rpc('erp_dispatch_line', { p_line_id: value(form, 'line'), p_quantity: int(form, 'quantity'), p_location_id: value(form, 'location'), p_address: value(form, 'address'), p_recipient: value(form, 'recipient'), p_phone: value(form, 'phone'), p_request_key: crypto.randomUUID() }), 'Items dispatched. Await signed handover.')}><Select label="Order item" name="line" options={lineOptions} /><Field label="Quantity" name="quantity" type="number" min="1" step="1" /><Select label="Stock area" name="location" options={locationOptions} /><Field label="Delivery address" name="address" /><Field label="Intended recipient" name="recipient" /><Field label="Recipient phone" name="phone" /><button className="live-primary" disabled={busy || !lineOptions.length}>Dispatch item</button></form></section><section className="live-card"><h3>Confirm signed handover</h3><form onSubmit={submit(form => client.rpc('erp_confirm_delivery', { p_delivery_id: value(form, 'delivery'), p_signed_by: value(form, 'signedBy'), p_signed_reference: value(form, 'signedReference') }), 'Signed handover recorded.')}><Select label="Open dispatch" name="delivery" options={data.deliveries.filter(item => item.delivery_status === 'out_for_delivery').map(item => ({ value: item.id, label: `${names.order.get(item.order_id)} · ${names.product.get(item.product_id ?? '')} · ${item.quantity}` }))} /><Field label="Person who signed" name="signedBy" /><Field label="Signed document reference" name="signedReference" /><button className="live-primary" disabled={busy}>Confirm handover</button></form><h4>Delivery exception</h4><form onSubmit={submit(form => client.rpc('erp_fail_delivery', { p_delivery_id: value(form, 'delivery'), p_reason: value(form, 'reason') }), 'Delivery marked failed. Stock remains outside sellable stock until returned.')}><Select label="Open dispatch" name="delivery" options={data.deliveries.filter(item => item.delivery_status === 'out_for_delivery').map(item => ({ value: item.id, label: `${names.order.get(item.order_id)} · ${item.recipient_name}` }))} /><Field label="Failure reason" name="reason" /><button disabled={busy}>Record failed delivery</button></form></section></div>}
+        <section className="live-card"><h3>Delivery register</h3>{data.deliveries.length === 0 ? <p className="live-empty">No dispatches yet.</p> : <div className="live-table-wrap"><table><thead><tr><th>Order</th><th>Product</th><th>Quantity</th><th>Recipient</th><th>Status</th><th>Dispatched</th><th>Signature reference</th><th>Action</th></tr></thead><tbody>{data.deliveries.map(item => <tr key={item.id}><td>{names.order.get(item.order_id)}</td><td>{names.product.get(item.product_id ?? '')}</td><td>{item.quantity}</td><td>{item.recipient_name}</td><td>{item.delivery_status.replaceAll('_', ' ')}</td><td>{date(item.dispatch_date)}</td><td>{item.signed_reference ?? '—'}</td><td>{canStock && item.delivery_status === 'failed' && <button disabled={busy} onClick={() => void perform(() => client.rpc('erp_receive_failed_delivery', { p_delivery_id: item.id }), 'Returned item moved into quarantine.')}>Receive to quarantine</button>}</td></tr>)}</tbody></table></div>}</section>
+      </>}
+
+      {tab === 'finance' && <>
+        {canFinance && <div className="live-grid"><section className="live-card"><h3>Record verified payment</h3><form onSubmit={submit(form => client.rpc('erp_record_payment', { p_order_id: value(form, 'order'), p_amount: int(form, 'amount'), p_method: value(form, 'method') as Enums<'payment_method'>, p_reference: value(form, 'reference') }), 'Payment recorded by Finance.')}><Select label="Open order" name="order" options={orderOptions} /><Field label="Amount in ETB" name="amount" type="number" min="0.01" step="0.01" /><Select label="Payment method" name="method" options={(['cash', 'telebirr', 'cbe_birr', 'bank_transfer', 'card'] as const).map(item => ({ value: item, label: item.replaceAll('_', ' ') }))} /><Field label="Verified payment reference" name="reference" /><button className="live-primary" disabled={busy || !orderOptions.length}>Record payment</button></form></section><section className="live-card"><h3>Full refund and cancellation before dispatch</h3><p className="live-hint">Finance must verify the refund and reference. The database blocks this action after any dispatch.</p><form onSubmit={submit(form => client.rpc('erp_refund_cancel_order', { p_order_id: value(form, 'order'), p_reason: value(form, 'reason'), p_reference: value(form, 'reference') }), 'Refund and cancellation recorded.')}><Select label="Order" name="order" options={orderOptions} /><Field label="Reason agreed with customer" name="reason" /><Field label="Refund transaction reference" name="reference" /><button disabled={busy || !orderOptions.length}>Record full refund and cancel</button></form></section></div>}
+        <section className="live-card"><h3>Payment ledger</h3>{data.payments.length === 0 ? <p className="live-empty">No payments recorded.</p> : <div className="live-table-wrap"><table><thead><tr><th>Order</th><th>Amount</th><th>Method</th><th>Reference</th><th>Recorded</th></tr></thead><tbody>{data.payments.map(item => <tr key={item.id}><td>{names.order.get(item.order_id)}</td><td>{money(item.amount)}</td><td>{item.payment_method.replaceAll('_', ' ')}</td><td>{item.reference_no}</td><td>{date(item.created_at)}</td></tr>)}</tbody></table></div>}</section>
+        <section className="live-card"><h3>Refund ledger</h3>{data.refunds.length === 0 ? <p className="live-empty">No refunds recorded.</p> : <div className="live-table-wrap"><table><thead><tr><th>Order</th><th>Amount</th><th>Reference</th><th>Reason</th><th>Recorded</th></tr></thead><tbody>{data.refunds.map(item => <tr key={item.id}><td>{names.order.get(item.order_id)}</td><td>{money(item.amount)}</td><td>{item.reference_no ?? '—'}</td><td>{item.reason}</td><td>{date(item.created_at)}</td></tr>)}</tbody></table></div>}</section>
+      </>}
+    </main>
+  </div>;
+}

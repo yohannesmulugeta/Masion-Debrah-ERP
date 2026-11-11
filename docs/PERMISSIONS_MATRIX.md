@@ -11,8 +11,10 @@ The UI role selector is a prototype control, not real staff sign-in. Database re
 | Create customer and order | Yes | Yes | No | Yes | No |
 | Create or release hold | Yes | Yes | No | Yes | No |
 | Fulfil order | Yes | Yes | Yes | No | No |
-| Record payment | Yes | No | No | Yes | Yes |
-| Approve refund | Yes | No | No | No | Yes |
+| Record payment | No | No | No | No | Yes |
+| Record pre-dispatch refund | No | No | No | No | Yes |
+| Record dispatch | Yes | Yes | Yes | No | No |
+| Record signed delivery | Yes | Yes | Yes | No | No |
 | Log damage or return case | Yes | Yes | Yes | No | No |
 | View full audit trail | Yes | Yes | No | No | No |
 

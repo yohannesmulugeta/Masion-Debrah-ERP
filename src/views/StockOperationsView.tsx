@@ -24,7 +24,7 @@ export const StockOperationsView: React.FC = () => {
     locationId: locations[0]?.id || '',
     quantity: 1,
     referenceNo: `RCV-${Date.now().toString().slice(-6)}`,
-    reason: 'HQ Container import arrival',
+    reason: 'Purchased goods received into Warehouse',
   });
 
   const [transferForm, setTransferForm] = useState({
@@ -208,7 +208,7 @@ export const StockOperationsView: React.FC = () => {
           </div>
           <form onSubmit={handleReceipt} style={{ padding: '24px' }}>
             <div className="form-group">
-              <label htmlFor="receipt-product">Select Catalogue Product (HQ SKU)</label>
+              <label htmlFor="receipt-product">Select product</label>
               <select
                 id="receipt-product"
                 className="form-select"
@@ -320,7 +320,7 @@ export const StockOperationsView: React.FC = () => {
           </div>
           <form onSubmit={handleTransfer} style={{ padding: '24px' }}>
             <div className="form-group">
-              <label htmlFor="transfer-product">Select Product (HQ SKU)</label>
+              <label htmlFor="transfer-product">Select product</label>
               <select
                 id="transfer-product"
                 className="form-select"
