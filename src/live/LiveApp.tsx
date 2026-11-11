@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import { ArrowRight, BookmarkCheck, Boxes, CreditCard, PlusCircle, TrendingUp, Truck } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Enums, Tables } from '../types/database.generated';
+import { LiveShell, type LiveTab } from './LiveShell';
 import './live.css';
 
 type Profile = Tables<'staff_profiles'>;
@@ -15,15 +17,15 @@ type Reservation = Tables<'reservations'>;
 type Delivery = Tables<'deliveries'>;
 type Payment = Tables<'payments'>;
 type Refund = Tables<'refunds'>;
-type Tab = 'overview' | 'products' | 'stock' | 'orders' | 'reservations' | 'deliveries' | 'finance';
+type Movement = Tables<'stock_movements'>;
 type Data = {
   locations: Location[]; products: Product[]; balances: Balance[];
   orders: Order[]; lines: Line[]; customers: Customer[];
   reservations: Reservation[]; deliveries: Delivery[];
-  payments: Payment[]; refunds: Refund[];
+  payments: Payment[]; refunds: Refund[]; movements: Movement[];
 };
 
-const emptyData: Data = { locations: [], products: [], balances: [], orders: [], lines: [], customers: [], reservations: [], deliveries: [], payments: [], refunds: [] };
+const emptyData: Data = { locations: [], products: [], balances: [], orders: [], lines: [], customers: [], reservations: [], deliveries: [], payments: [], refunds: [], movements: [] };
 const money = (value: number | null | undefined) => `${Number(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETB`;
 const date = (value: string | null | undefined) => value ? new Date(value).toLocaleString() : '—';
 const value = (form: HTMLFormElement, key: string) => String(new FormData(form).get(key) ?? '').trim();
@@ -43,15 +45,19 @@ async function readData(): Promise<Data> {
     supabase.from('deliveries').select('*').order('created_at', { ascending: false }),
     supabase.from('payments').select('*').order('created_at', { ascending: false }),
     supabase.from('refunds').select('*').order('created_at', { ascending: false }),
+    supabase.from('stock_movements').select('*').order('created_at', { ascending: false }).limit(5),
   ] as const);
   const failure = results.find(result => result.error);
   if (failure?.error) throw failure.error;
   return {
-    locations: results[0].data ?? [], products: results[1].data ?? [],
+    locations: [...(results[0].data ?? [])].sort((a, b) =>
+      Number(b.type === 'warehouse') - Number(a.type === 'warehouse') || a.code.localeCompare(b.code)),
+    products: results[1].data ?? [],
     balances: results[2].data ?? [], orders: results[3].data ?? [],
     lines: results[4].data ?? [], customers: results[5].data ?? [],
     reservations: results[6].data ?? [], deliveries: results[7].data ?? [],
     payments: results[8].data ?? [], refunds: results[9].data ?? [],
+    movements: results[10].data ?? [],
   };
 }
 
@@ -74,7 +80,8 @@ export function LiveApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [data, setData] = useState<Data>(emptyData);
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<LiveTab>('overview');
+  const [selectedLocationId, setSelectedLocationId] = useState('all');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -117,6 +124,23 @@ export function LiveApp() {
   const locationOptions = data.locations.filter(item => item.is_active).map(item => ({ value: item.id, label: item.name }));
   const showroomOptions = data.locations.filter(item => item.is_active && item.type === 'showroom').map(item => ({ value: item.id, label: item.name }));
   const openOrders = data.orders.filter(order => order.status !== 'cancelled' && order.status !== 'delivered');
+  const activeReservations = data.reservations.filter(item => item.status === 'active');
+  const dueReservations = activeReservations.filter(item => item.review_at && new Date(item.review_at).getTime() <= Date.now() + 24 * 60 * 60 * 1000);
+  const visibleBalances = data.balances.filter(item => selectedLocationId === 'all' || item.location_id === selectedLocationId);
+  const visibleReservations = activeReservations.filter(item => selectedLocationId === 'all' || item.location_id === selectedLocationId);
+  const sellableOnHand = visibleBalances.reduce((total, item) => total + item.sellable_on_hand, 0);
+  const reservedUnits = visibleBalances.reduce((total, item) => total + item.active_reserved, 0);
+  const balanceDue = openOrders.reduce((total, item) => total + (item.balance_due ?? 0), 0);
+  const outForDelivery = data.deliveries.filter(item => item.delivery_status === 'out_for_delivery');
+  const outOfStock = data.products.filter(product => product.is_active &&
+    !data.balances.some(balance => balance.product_id === product.id && balance.sellable_on_hand > balance.active_reserved));
+  const stockViewName = selectedLocationId === 'all' ? 'all areas' : names.location.get(selectedLocationId) ?? 'the selected area';
+  const tabTitles: Record<LiveTab, string> = {
+    overview: 'Ethiopia Operations Overview', products: 'Products & Prices',
+    inventory: 'Stock by Area', operations: 'Receipts & Transfers',
+    orders: 'Showroom Orders', reservations: 'Reservations (Holds)',
+    finance: 'Payments & Balances', deliveries: 'Deliveries & Handover',
+  };
   const orderOptions = openOrders.map(order => ({ value: order.id, label: `${order.order_number} · ${names.customer.get(order.customer_id) ?? 'Customer'} · ${money(order.balance_due)}` }));
   const lineOptions = data.lines.filter(line => openOrders.some(order => order.id === line.order_id)).map(line => ({ value: line.id, label: `${names.order.get(line.order_id)} · ${names.product.get(line.product_id)} · ${line.quantity} item(s)` }));
   const role = profile?.role;
@@ -195,18 +219,51 @@ export function LiveApp() {
   if (passwordSetup) return <main className="live-auth"><div className="live-auth-card"><p className="live-eyebrow">Maison Debrah</p><h1>Set your ERP password</h1><p>Finish setting up your invited staff account.</p><form onSubmit={finishPasswordSetup}><Field label="New password" name="password" type="password" /><Field label="Confirm password" name="confirmation" type="password" /><button className="live-primary" disabled={busy}>Save password</button></form>{error && <p className="live-error" role="alert">{error}</p>}</div></main>;
   if (!profile?.is_active) return <main className="live-center"><h1>Staff access pending</h1><p>Your account has no active Maison Debrah staff profile. Ask the administrator to assign your role.</p><button onClick={() => void client.auth.signOut()}>Sign out</button></main>;
 
-  return <div className="live-app">
-    <a className="skip-link" href="#live-main">Skip to content</a>
-    <header className="live-header"><div><p className="live-eyebrow">Maison Debrah</p><h1>Operations</h1><span>One building · Warehouse and Showrooms 1–3</span></div><div className="live-user"><strong>{profile.full_name}</strong><span>{profile.role.replace('_', ' ')}</span><button onClick={() => void client.auth.signOut()}>Sign out</button></div></header>
-    <nav className="live-nav" aria-label="Main navigation">{(['overview', 'products', 'stock', 'orders', 'reservations', 'deliveries', 'finance'] as const).map(item => <button key={item} aria-current={tab === item ? 'page' : undefined} onClick={() => { setTab(item); setError(''); setMessage(''); }}>{item[0].toUpperCase() + item.slice(1)}</button>)}</nav>
-    <main id="live-main" className="live-main">
+  return <LiveShell currentTab={tab} onNavigate={next => { setTab(next); setError(''); setMessage(''); }}
+    locations={data.locations} selectedLocationId={selectedLocationId} onLocationChange={setSelectedLocationId}
+    profile={profile} openOrders={openOrders.length} activeReservations={activeReservations.length}
+    onRefresh={() => void refresh().catch(cause => setError(String(cause)))}
+    onSignOut={() => void client.auth.signOut()} busy={busy}>
       {error && <p className="live-error" role="alert">{error}</p>}{message && <p className="live-success" role="status">{message}</p>}
-      <div className="live-section-head"><div><p className="live-eyebrow">Live shared database</p><h2>{tab[0].toUpperCase() + tab.slice(1)}</h2></div><button onClick={() => void refresh().catch(cause => setError(String(cause)))} disabled={busy}>Refresh data</button></div>
+      {tab !== 'overview' && <div className="view-header"><div className="view-title-group"><h1>{tabTitles[tab]}</h1><p>Live records for Warehouse and Showrooms 1–3.</p></div></div>}
 
       {tab === 'overview' && <>
-        <div className="live-metrics"><article><span>Active products</span><strong>{data.products.filter(item => item.is_active).length}</strong></article><article><span>Open orders</span><strong>{openOrders.length}</strong></article><article><span>Reservations due for review</span><strong>{data.reservations.filter(item => item.status === 'active' && item.review_at && new Date(item.review_at) <= new Date()).length}</strong></article><article><span>Out for delivery</span><strong>{data.deliveries.filter(item => item.delivery_status === 'out_for_delivery').length}</strong></article></div>
-        <section className="live-card"><h3>Today’s workflow</h3><ol className="live-steps"><li>Sales agrees the exact product and creates the order.</li><li>Finance records a deposit or the full payment.</li><li>Sales reserves stock after a deposit, if collection is later.</li><li>Stock dispatches only when the entire order is paid.</li><li>The recipient signs at handover; staff record the signature reference.</li></ol></section>
-        {data.products.length === 0 && <p className="live-note">No approved products or opening stock have been loaded. The system is ready for data onboarding, but no customer order should be entered yet.</p>}
+        <div className="view-header"><div className="view-title-group"><h1>Ethiopia Operations Overview</h1>
+          <p>Warehouse and Showrooms 1–3 are rooms in one building. Stock totals show {stockViewName}; tasks and orders cover all areas.</p>
+        </div><div className="view-actions">
+          {canStock && <button className="btn btn-primary" onClick={() => setTab('operations')}><PlusCircle size={15} />Post Stock Movement</button>}
+          {canSales && <button className="btn btn-accent" onClick={() => setTab('orders')}><TrendingUp size={15} />New Showroom Order</button>}
+        </div></div>
+        <section className="card" aria-labelledby="live-attention-title"><div className="card-header"><h2 id="live-attention-title">Needs Attention</h2></div>
+          <div className="attention-grid">
+            <button onClick={() => setTab('reservations')}><strong>{dueReservations.length}</strong><span>reservations due for review</span><ArrowRight size={16} /></button>
+            <button onClick={() => setTab('orders')}><strong>{openOrders.length}</strong><span>orders awaiting handover</span><ArrowRight size={16} /></button>
+            <button onClick={() => setTab('inventory')}><strong>{outOfStock.length}</strong><span>products with no available stock</span><ArrowRight size={16} /></button>
+            <button onClick={() => setTab('deliveries')}><strong>{outForDelivery.length}</strong><span>items out for delivery</span><ArrowRight size={16} /></button>
+          </div></section>
+        <div className="metrics-grid">
+          <div className="metric-card"><div className="metric-title"><span>Physical Sellable Stock</span><Boxes size={18} /></div><div className="metric-value">{sellableOnHand}</div><div className="metric-sub">{sellableOnHand - reservedUnits} unreserved & immediately sellable</div></div>
+          <div className="metric-card"><div className="metric-title"><span>Active Reservations</span><BookmarkCheck size={18} /></div><div className="metric-value">{reservedUnits}</div><div className="metric-sub">{visibleReservations.length} active customer holds in this stock view</div></div>
+          <div className="metric-card"><div className="metric-title"><span>Outstanding Balances Due</span><CreditCard size={18} /></div><div className="metric-value live-money-metric">ETB {balanceDue.toLocaleString('en-US')}</div><div className="metric-sub">{openOrders.length} open orders in registry</div></div>
+          <div className="metric-card"><div className="metric-title"><span>Out for Delivery</span><Truck size={18} /></div><div className="metric-value">{outForDelivery.length}</div><div className="metric-sub">Awaiting signed handover</div></div>
+        </div>
+        <section className="card"><div className="card-header"><h2>Stock by Area</h2><button className="btn btn-secondary btn-sm" onClick={() => setTab('inventory')}>Full Inventory Matrix <ArrowRight size={13} /></button></div>
+          <div className="table-responsive"><table className="data-table"><thead><tr><th>Area Code</th><th>Area Name</th><th>Type</th><th>Total Units On-Hand</th><th>Reserved Holds</th><th>Net Sellable Available</th></tr></thead>
+            <tbody>{data.locations.map(location => { const rows = data.balances.filter(balance => balance.location_id === location.id);
+              const onHand = rows.reduce((total, balance) => total + balance.sellable_on_hand, 0);
+              const reserved = rows.reduce((total, balance) => total + balance.active_reserved, 0);
+              return <tr key={location.id}><td><strong>{location.code}</strong></td><td>{location.name}</td><td>{location.type}</td><td>{onHand}</td><td>{reserved}</td><td>{onHand - reserved}</td></tr>;
+            })}</tbody></table></div>
+        </section>
+        <div className="dashboard-lower-grid">
+          <section className="card"><div className="card-header"><h2>Recent Stock Ledger Entries</h2></div>
+            {data.movements.length === 0 ? <p className="live-empty">No stock movements recorded yet.</p> : <div className="table-responsive"><table className="data-table"><thead><tr><th>Time</th><th>Action</th><th>Product</th><th>Qty</th><th>Reference</th></tr></thead><tbody>{data.movements.map(movement => <tr key={movement.id}><td>{date(movement.created_at)}</td><td>{movement.movement_type.replaceAll('_', ' ')}</td><td>{names.product.get(movement.product_id)}</td><td>{movement.quantity}</td><td>{movement.reference_no}</td></tr>)}</tbody></table></div>}
+          </section>
+          <section className="card"><div className="card-header"><h2>Active Customer Holds</h2><button className="btn btn-secondary btn-sm" onClick={() => setTab('reservations')}>Manage <ArrowRight size={13} /></button></div>
+            {activeReservations.length === 0 ? <p className="live-empty">No active holds currently.</p> : <div className="live-hold-list">{activeReservations.slice(0, 5).map(hold => <div key={hold.id}><strong>{names.order.get(hold.order_id)}</strong><span>{hold.quantity} unit hold</span><p>{names.product.get(hold.product_id)} · {names.location.get(hold.location_id)}</p></div>)}</div>}
+          </section>
+        </div>
+        {data.products.length === 0 && <p className="live-note">No approved products or opening stock have been loaded. No customer order should be entered yet.</p>}
       </>}
 
       {tab === 'products' && <>
@@ -214,8 +271,11 @@ export function LiveApp() {
         <section className="live-card"><h3>Local product register</h3>{data.products.length === 0 ? <p className="live-empty">No approved products loaded yet.</p> : <div className="live-table-wrap"><table><thead><tr><th>SKU</th><th>Product</th><th>Category</th><th>Approved price</th><th>Active</th></tr></thead><tbody>{data.products.map(item => <tr key={item.id}><td>{item.sku}</td><td>{item.name}</td><td>{item.category}</td><td>{money(item.local_price)}</td><td>{item.is_active ? 'Yes' : 'No'}</td></tr>)}</tbody></table></div>}</section>
       </>}
 
-      {tab === 'stock' && <>
-        <section className="live-card"><h3>Stock by area</h3>{data.balances.length === 0 ? <p className="live-empty">No opening stock has been posted.</p> : <div className="live-table-wrap"><table><thead><tr><th>Product</th><th>Area</th><th>On hand</th><th>Reserved</th><th>Available</th><th>Quarantine</th></tr></thead><tbody>{data.balances.map(item => <tr key={`${item.product_id}-${item.location_id}`}><td>{names.product.get(item.product_id)}</td><td>{names.location.get(item.location_id)}</td><td>{item.sellable_on_hand}</td><td>{item.active_reserved}</td><td>{item.sellable_on_hand - item.active_reserved}</td><td>{item.quarantine_count}</td></tr>)}</tbody></table></div>}</section>
+      {tab === 'inventory' && <>
+        <section className="live-card"><h3>Stock by area</h3>{visibleBalances.length === 0 ? <p className="live-empty">No opening stock has been posted in {stockViewName}.</p> : <div className="live-table-wrap"><table><thead><tr><th>Product</th><th>Area</th><th>On hand</th><th>Reserved</th><th>Available</th><th>Quarantine</th></tr></thead><tbody>{visibleBalances.map(item => <tr key={`${item.product_id}-${item.location_id}`}><td>{names.product.get(item.product_id)}</td><td>{names.location.get(item.location_id)}</td><td>{item.sellable_on_hand}</td><td>{item.active_reserved}</td><td>{item.sellable_on_hand - item.active_reserved}</td><td>{item.quarantine_count}</td></tr>)}</tbody></table></div>}</section>
+      </>}
+
+      {tab === 'operations' && <>
         {canStock && <div className="live-grid"><section className="live-card"><h3>Receive at Warehouse</h3><form onSubmit={submit(form => client.rpc('erp_post_receipt', { p_product_id: value(form, 'product'), p_quantity: int(form, 'quantity'), p_reference: value(form, 'reference'), p_reason: value(form, 'reason') }), 'Receipt posted.')}><Select label="Product" name="product" options={productOptions} /><Field label="Quantity" name="quantity" type="number" min="1" step="1" /><Field label="Supplier / receipt reference" name="reference" /><Field label="Reason" name="reason" /><button className="live-primary" disabled={busy || !productOptions.length}>Post receipt</button></form></section>
         <section className="live-card"><h3>Transfer between areas</h3><form onSubmit={submit(form => client.rpc('erp_post_transfer', { p_product_id: value(form, 'product'), p_source: value(form, 'source'), p_destination: value(form, 'destination'), p_quantity: int(form, 'quantity'), p_reference: value(form, 'reference'), p_reason: value(form, 'reason') }), 'Transfer posted.')}><Select label="Product" name="product" options={productOptions} /><Select label="From" name="source" options={locationOptions} /><Select label="To" name="destination" options={locationOptions} /><Field label="Quantity" name="quantity" type="number" min="1" step="1" /><Field label="Transfer reference" name="reference" /><Field label="Reason" name="reason" /><button className="live-primary" disabled={busy || !productOptions.length}>Post transfer</button></form></section></div>}
       </>}
@@ -240,6 +300,5 @@ export function LiveApp() {
         <section className="live-card"><h3>Payment ledger</h3>{data.payments.length === 0 ? <p className="live-empty">No payments recorded.</p> : <div className="live-table-wrap"><table><thead><tr><th>Order</th><th>Amount</th><th>Method</th><th>Reference</th><th>Recorded</th></tr></thead><tbody>{data.payments.map(item => <tr key={item.id}><td>{names.order.get(item.order_id)}</td><td>{money(item.amount)}</td><td>{item.payment_method.replaceAll('_', ' ')}</td><td>{item.reference_no}</td><td>{date(item.created_at)}</td></tr>)}</tbody></table></div>}</section>
         <section className="live-card"><h3>Refund ledger</h3>{data.refunds.length === 0 ? <p className="live-empty">No refunds recorded.</p> : <div className="live-table-wrap"><table><thead><tr><th>Order</th><th>Amount</th><th>Reference</th><th>Reason</th><th>Recorded</th></tr></thead><tbody>{data.refunds.map(item => <tr key={item.id}><td>{names.order.get(item.order_id)}</td><td>{money(item.amount)}</td><td>{item.reference_no ?? '—'}</td><td>{item.reason}</td><td>{date(item.created_at)}</td></tr>)}</tbody></table></div>}</section>
       </>}
-    </main>
-  </div>;
+  </LiveShell>;
 }
