@@ -1,4 +1,6 @@
-# Maison Debrah ERP — proposed staff permission matrix
+# Maison Debrah ERP — earlier proposed permission matrix
+
+> For the current live role rules, use [LIVE_OPERATING_GUIDE.md](LIVE_OPERATING_GUIDE.md). This table is retained as a historical proposal.
 
 The UI role selector is a prototype control, not real staff sign-in. Database read policies require an active staff profile; operational client writes and unverified functions are restricted. The table below describes the **intended** role design and needs business approval and server-side implementation before live use.
 
@@ -11,8 +13,10 @@ The UI role selector is a prototype control, not real staff sign-in. Database re
 | Create customer and order | Yes | Yes | No | Yes | No |
 | Create or release hold | Yes | Yes | No | Yes | No |
 | Fulfil order | Yes | Yes | Yes | No | No |
-| Record payment | Yes | No | No | Yes | Yes |
-| Approve refund | Yes | No | No | No | Yes |
+| Record payment | No | No | No | No | Yes |
+| Record pre-dispatch refund | No | No | No | No | Yes |
+| Record dispatch | Yes | Yes | Yes | No | No |
+| Record signed delivery | Yes | Yes | Yes | No | No |
 | Log damage or return case | Yes | Yes | Yes | No | No |
 | View full audit trail | Yes | Yes | No | No | No |
 

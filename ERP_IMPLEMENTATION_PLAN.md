@@ -1,5 +1,7 @@
 # Masion Debrah ERP implementation plan
 
+> **Superseded for the current application:** See [docs/ERP_BUILD_PLAN.md](docs/ERP_BUILD_PLAN.md) for the plan based on the existing React demo and the 10 November 2026 workflow answers. This document records an earlier proposal and contains assumptions that are no longer current.
+
 Date: 5 November 2026  
 Status: planning baseline; no ERP application or database has been created
 

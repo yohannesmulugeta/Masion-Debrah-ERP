@@ -40,8 +40,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
   const stockViewName = selectedLocationId === 'all' ? 'all areas' : locations.find(location => location.id === selectedLocationId)?.name || 'the selected area';
   const activeReservations = reservations.filter((r) => r.status === 'active');
   const stockViewReservations = activeReservations.filter(reservation => selectedLocationId === 'all' || reservation.locationId === selectedLocationId);
-  const dueHolds = activeReservations.filter(r => new Date(r.expiresAt).getTime() <= Date.now() + 24 * 60 * 60 * 1000);
-  const awaitingFulfilment = orders.filter(order => !['delivered', 'dispatched', 'cancelled'].includes(order.status));
+  const dueHolds = activeReservations.filter(r => new Date(r.reviewAt || r.expiresAt).getTime() <= Date.now() + 24 * 60 * 60 * 1000);
+  const awaitingFulfilment = orders.filter(order => !['delivered', 'cancelled'].includes(order.status));
   const outOfStock = products.filter(product => getProductStock(product.id, 'all').available === 0);
   const totalBalanceDue = orders.reduce((sum, o) => sum + (o.balanceDue || 0), 0);
 
@@ -69,8 +69,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate }) => {
       <section className="card" aria-labelledby="attention-title">
         <div className="card-header"><h2 id="attention-title">Needs Attention</h2></div>
         <div className="attention-grid">
-          <button onClick={() => onNavigate('reservations')}><strong>{dueHolds.length}</strong><span>holds due within 24 hours</span><ArrowRight size={16} /></button>
-          <button onClick={() => onNavigate('orders')}><strong>{awaitingFulfilment.length}</strong><span>orders awaiting fulfilment</span><ArrowRight size={16} /></button>
+          <button onClick={() => onNavigate('reservations')}><strong>{dueHolds.length}</strong><span>reservations due for review</span><ArrowRight size={16} /></button>
+          <button onClick={() => onNavigate('orders')}><strong>{awaitingFulfilment.length}</strong><span>orders awaiting handover</span><ArrowRight size={16} /></button>
           <button onClick={() => onNavigate('inventory')}><strong>{outOfStock.length}</strong><span>products with no available stock</span><ArrowRight size={16} /></button>
           <button onClick={() => onNavigate('exceptions')}><strong>{exceptions.length}</strong><span>cases needing review</span><ArrowRight size={16} /></button>
         </div>

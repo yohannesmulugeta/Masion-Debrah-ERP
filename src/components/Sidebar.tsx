@@ -7,6 +7,7 @@ import {
   ShoppingCart,
   BookmarkCheck,
   CreditCard,
+  Truck,
   AlertTriangle,
   FileText,
   Globe,
@@ -92,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
           onClick={() => onNavigate('catalogue')}
         >
           <PackageCheck />
-          <span>HQ Catalogue & Import</span>
+          <span>Products & Prices</span>
         </button>
 
         <button
@@ -147,6 +148,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onNavigate, isOpe
         >
           <CreditCard />
           <span>Payments & Balances</span>
+        </button>
+
+        <button
+          className={`nav-item ${currentView === 'deliveries' ? 'active' : ''}`}
+          aria-current={currentView === 'deliveries' ? 'page' : undefined}
+          onClick={() => onNavigate('deliveries')}
+        >
+          <Truck />
+          <span>Deliveries & Handover</span>
         </button>
 
         <div className="nav-section-title">Compliance & Traceability</div>

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
   Location, Product, StockBalance, StockMovement, SalesOrder, Customer,
   Reservation, Payment, ExceptionCase, StaffProfile, AuditEvent, StaffRole,
-  PublicAvailabilityFeedItem
+  PublicAvailabilityFeedItem, DeliveryRecord, RefundRecord
 } from '../types';
 import {
   INITIAL_LOCATIONS, INITIAL_PRODUCTS, INITIAL_BALANCES, INITIAL_STAFF,
@@ -10,7 +10,8 @@ import {
   INITIAL_MOVEMENTS, INITIAL_EXCEPTIONS, INITIAL_AUDIT
 } from '../lib/mockData';
 import { previewCatalogueImport } from '../lib/catalogueImport';
-import { planFulfilment } from '../lib/stockOperations';
+import { deliveryStatus, planDispatch, remainingToDispatch } from '../lib/deliveryOperations';
+import { planFullRefund } from '../lib/financeOperations';
 
 interface ErpContextType {
   staffList: StaffProfile[];
@@ -27,6 +28,8 @@ interface ErpContextType {
   customers: Customer[];
   reservations: Reservation[];
   payments: Payment[];
+  refunds: RefundRecord[];
+  deliveries: DeliveryRecord[];
   exceptions: ExceptionCase[];
   auditEvents: AuditEvent[];
 
@@ -45,11 +48,16 @@ interface ErpContextType {
   // Core Business Actions
   postReceipt: (data: { productId: string; locationId: string; quantity: number; referenceNo: string; reason: string }) => void;
   postTransfer: (data: { productId: string; sourceLocationId: string; destLocationId: string; quantity: number; referenceNo: string; reason: string }) => void;
-  createOrder: (data: { customerName: string; customerPhone: string; locationId: string; items: { productId: string; quantity: number; unitPrice: number }[]; notes?: string; holdHours?: number }) => string;
-  createReservation: (data: { orderId: string; productId: string; locationId: string; quantity: number; hours: number }) => void;
+  createOrder: (data: { customerName: string; customerPhone: string; locationId: string; items: { productId: string; quantity: number; unitPrice: number }[]; notes?: string }) => string;
+  createReservation: (data: { orderId: string; productId: string; locationId: string; quantity: number; expiresAt: string; reviewAt: string }) => void;
+  extendReservation: (data: { reservationId: string; expiresAt: string; reviewAt: string; reason: string }) => void;
   releaseReservation: (data: { reservationId: string; reason: string }) => void;
-  fulfilOrder: (orderId: string) => void;
+  dispatchOrderLine: (data: { orderId: string; lineId: string; quantity: number; locationId: string; deliveryAddress: string; intendedRecipient: string }) => void;
+  confirmDelivery: (data: { deliveryId: string; signedBy: string; signedReference: string }) => void;
+  failDelivery: (data: { deliveryId: string; reason: string }) => void;
+  receiveFailedDelivery: (deliveryId: string) => void;
   recordPayment: (data: { orderId: string; amount: number; paymentMethod: Payment['paymentMethod']; referenceNo: string; notes?: string }) => void;
+  refundAndCancelOrder: (data: { orderId: string; reason: string; referenceNo: string }) => void;
   recordAdjustment: (data: { productId: string; locationId: string; newQuantity: number; reason: string }) => void;
   createException: (data: { caseType: ExceptionCase['caseType']; productId: string; locationId: string; quantity: number; disposition: ExceptionCase['disposition']; issueDescription: string; customerName?: string; orderNumber?: string }) => void;
   importCatalogueBatch: (newProducts: Product[]) => { imported: number; duplicates: number; blankSkus: number };
@@ -94,6 +102,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem(`${STORAGE_KEY}_payments`);
     return saved ? JSON.parse(saved) : INITIAL_PAYMENTS;
   });
+  const [refunds, setRefunds] = useState<RefundRecord[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_refunds`);
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [deliveries, setDeliveries] = useState<DeliveryRecord[]>(() => {
+    const saved = localStorage.getItem(`${STORAGE_KEY}_deliveries`);
+    return saved ? JSON.parse(saved) : [];
+  });
   const [exceptions, setExceptions] = useState<ExceptionCase[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_KEY}_exceptions`);
     return saved ? JSON.parse(saved) : INITIAL_EXCEPTIONS;
@@ -112,9 +128,11 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem(`${STORAGE_KEY}_customers`, JSON.stringify(customers));
     localStorage.setItem(`${STORAGE_KEY}_reservations`, JSON.stringify(reservations));
     localStorage.setItem(`${STORAGE_KEY}_payments`, JSON.stringify(payments));
+    localStorage.setItem(`${STORAGE_KEY}_refunds`, JSON.stringify(refunds));
+    localStorage.setItem(`${STORAGE_KEY}_deliveries`, JSON.stringify(deliveries));
     localStorage.setItem(`${STORAGE_KEY}_exceptions`, JSON.stringify(exceptions));
     localStorage.setItem(`${STORAGE_KEY}_audit`, JSON.stringify(auditEvents));
-  }, [products, balances, movements, orders, customers, reservations, payments, exceptions, auditEvents]);
+  }, [products, balances, movements, orders, customers, reservations, payments, refunds, deliveries, exceptions, auditEvents]);
 
   const setCurrentStaffRole = (role: StaffRole) => {
     const match = staffList.find(s => s.role === role);
@@ -159,15 +177,15 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       case 'fulfil_order':
         return role === 'admin' || role === 'manager' || role === 'stock_clerk';
       case 'record_payment':
-        return role === 'admin' || role === 'finance' || role === 'showroom_sales';
+        return role === 'finance';
       case 'approve_refund':
-        return role === 'admin' || role === 'finance';
+        return role === 'finance';
       case 'manage_exceptions':
         return role === 'admin' || role === 'manager' || role === 'stock_clerk';
       case 'view_audit':
         return role === 'admin' || role === 'manager';
       default:
-        return true;
+        return false;
     }
   };
 
@@ -337,7 +355,7 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // 3. Create Sales Order
-  const createOrder = (data: { customerName: string; customerPhone: string; locationId: string; items: { productId: string; quantity: number; unitPrice: number }[]; notes?: string; holdHours?: number }): string => {
+  const createOrder = (data: { customerName: string; customerPhone: string; locationId: string; items: { productId: string; quantity: number; unitPrice: number }[]; notes?: string }): string => {
     if (!canPerform('create_order')) throw new Error('Unauthorized to create sales orders.');
     if (!data.customerName.trim() || !data.customerPhone.trim()) throw new Error('Customer name and phone are required.');
     if (!locations.some(loc => loc.id === data.locationId && loc.type === 'showroom')) throw new Error('Choose a valid showroom.');
@@ -346,14 +364,6 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!products.some(product => product.id === item.productId)) throw new Error('Choose a valid product.');
       if (!Number.isSafeInteger(item.quantity) || item.quantity <= 0) throw new Error('Order quantity must be a positive whole number.');
       if (!Number.isFinite(item.unitPrice) || item.unitPrice < 0) throw new Error('Enter a valid unit price.');
-    }
-    if (data.holdHours !== undefined) {
-      if (data.items.length !== 1 || !Number.isSafeInteger(data.holdHours) || data.holdHours <= 0) {
-        throw new Error('A stock hold requires one product and a valid duration.');
-      }
-      const item = data.items[0];
-      const stock = getProductStock(item.productId, data.locationId);
-      if (stock.available < item.quantity) throw new Error(`Only ${stock.available} unreserved unit(s) are available in this showroom.`);
     }
 
     // Ensure customer exists or create new
@@ -403,47 +413,23 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setOrders(prev => [newOrder, ...prev]);
-    if (data.holdHours !== undefined) {
-      const item = data.items[0];
-      const now = new Date().toISOString();
-      const reservation: Reservation = {
-        id: `res-${crypto.randomUUID()}`,
-        orderId,
-        orderNumber,
-        productId: item.productId,
-        locationId: data.locationId,
-        quantity: item.quantity,
-        status: 'active',
-        expiresAt: new Date(Date.now() + data.holdHours * 3600 * 1000).toISOString(),
-        createdAt: now,
-      };
-      setBalances(prev => prev.map(balance => balance.productId === item.productId && balance.locationId === data.locationId
-        ? { ...balance, activeReserved: balance.activeReserved + item.quantity, updatedAt: now }
-        : balance));
-      setReservations(prev => [reservation, ...prev]);
-      setOrders(prev => prev.map(order => order.id === orderId ? { ...order, status: 'reserved' } : order));
-      setMovements(prev => [{
-        id: `mov-${crypto.randomUUID()}`,
-        productId: item.productId,
-        sourceLocationId: data.locationId,
-        movementType: 'reservation_hold',
-        quantity: item.quantity,
-        referenceNo: orderNumber,
-        reason: `Customer hold for ${data.holdHours} hours`,
-        createdBy: currentStaff.fullName,
-        createdAt: now,
-      }, ...prev]);
-      addAudit('RESERVATION_CREATED', 'reservations', reservation.id, `Reserved ${item.quantity} unit(s) for ${orderNumber}`);
-    }
     addAudit('ORDER_CREATED', 'sales_orders', orderId, `Created sales order ${orderNumber} for ${customer.fullName} totaling ETB ${subtotal.toLocaleString()}`);
 
     return orderId;
   };
 
   // 4. Create Stock Reservation (Hold)
-  const createReservation = (data: { orderId: string; productId: string; locationId: string; quantity: number; hours: number }) => {
+  const createReservation = (data: { orderId: string; productId: string; locationId: string; quantity: number; expiresAt: string; reviewAt: string }) => {
     if (!canPerform('create_reservation')) throw new Error('Unauthorized to create reservations.');
-    if (data.quantity <= 0) throw new Error('Reservation quantity must be positive.');
+    if (!Number.isSafeInteger(data.quantity) || data.quantity <= 0) throw new Error('Reservation quantity must be a positive whole number.');
+    const order = orders.find(item => item.id === data.orderId);
+    if (!order || order.status === 'cancelled' || order.status === 'delivered') throw new Error('Choose an open order.');
+    if (order.paidAmount <= 0) throw new Error('Finance must record a deposit before reserving stock.');
+    const line = order.lines.find(item => item.productId === data.productId);
+    if (!line || data.quantity > remainingToDispatch(order, line.id, deliveries)) throw new Error('Reservation exceeds the undelivered order item quantity.');
+    if (reservations.some(item => item.orderId === order.id && item.productId === data.productId && item.status === 'active')) throw new Error('This item already has an active reservation.');
+    if (!Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= Date.now()) throw new Error('Choose a future collection or delivery date.');
+    if (!Number.isFinite(Date.parse(data.reviewAt)) || Date.parse(data.reviewAt) <= Date.now() || Date.parse(data.reviewAt) > Date.parse(data.expiresAt)) throw new Error('Choose a review date before the agreed collection date.');
 
     const b = balances.find(item => item.productId === data.productId && item.locationId === data.locationId);
     const available = (b?.sellableOnHand || 0) - (b?.activeReserved || 0);
@@ -467,26 +453,23 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     });
 
-    const order = orders.find(o => o.id === data.orderId);
-    const expiresAt = new Date(Date.now() + data.hours * 3600 * 1000).toISOString();
+    const expiresAt = new Date(data.expiresAt).toISOString();
 
     const res: Reservation = {
       id: `res-${Date.now()}`,
       orderId: data.orderId,
-      orderNumber: order?.orderNumber || 'DIRECT-HOLD',
+      orderNumber: order.orderNumber,
       productId: data.productId,
       locationId: data.locationId,
       quantity: data.quantity,
       status: 'active',
       expiresAt,
+      reviewAt: new Date(data.reviewAt).toISOString(),
       createdAt: new Date().toISOString(),
     };
     setReservations(prev => [res, ...prev]);
 
     // Update order status if draft/confirmed
-    if (order && order.status !== 'partially_paid' && order.status !== 'paid') {
-      setOrders(prev => prev.map(o => o.id === data.orderId ? { ...o, status: 'reserved' } : o));
-    }
 
     const mov: StockMovement = {
       id: `mov-${Date.now()}`,
@@ -494,21 +477,35 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       sourceLocationId: data.locationId,
       movementType: 'reservation_hold',
       quantity: data.quantity,
-      referenceNo: order?.orderNumber || res.id,
-      reason: `Customer hold for ${data.hours} hours`,
+      referenceNo: order.orderNumber,
+      reason: `Deposit reservation until ${expiresAt}`,
       createdBy: currentStaff.fullName,
       createdAt: new Date().toISOString(),
     };
     setMovements(prev => [mov, ...prev]);
 
-    addAudit('RESERVATION_CREATED', 'reservations', res.id, `Reserved ${data.quantity} units of product ${data.productId} for order ${order?.orderNumber}`);
+    addAudit('RESERVATION_CREATED', 'reservations', res.id, `Reserved ${data.quantity} units of product ${data.productId} for order ${order.orderNumber}`);
+  };
+
+  const extendReservation = (data: { reservationId: string; expiresAt: string; reviewAt: string; reason: string }) => {
+    if (!canPerform('create_reservation')) throw new Error('Unauthorized to extend reservations.');
+    const reservation = reservations.find(item => item.id === data.reservationId);
+    if (!reservation || reservation.status !== 'active') throw new Error('Active reservation not found.');
+    if (!data.reason.trim()) throw new Error('Record the customer discussion and reason for extension.');
+    if (!Number.isFinite(Date.parse(data.expiresAt)) || Date.parse(data.expiresAt) <= Date.now()) throw new Error('Choose a future collection date.');
+    if (!Number.isFinite(Date.parse(data.reviewAt)) || Date.parse(data.reviewAt) <= Date.now() || Date.parse(data.reviewAt) > Date.parse(data.expiresAt)) throw new Error('Choose a review date before collection.');
+    setReservations(prev => prev.map(item => item.id === reservation.id ? { ...item, expiresAt: new Date(data.expiresAt).toISOString(), reviewAt: new Date(data.reviewAt).toISOString() } : item));
+    addAudit('RESERVATION_EXTENDED', 'reservations', reservation.id, data.reason.trim());
   };
 
   // 5. Release Reservation
   const releaseReservation = (data: { reservationId: string; reason: string }) => {
     if (!canPerform('release_reservation')) throw new Error('Unauthorized to release reservations.');
+    if (!data.reason.trim()) throw new Error('Enter a reason for releasing the reservation.');
     const res = reservations.find(r => r.id === data.reservationId);
     if (!res || res.status !== 'active') throw new Error('Active reservation not found.');
+    const order = orders.find(item => item.id === res.orderId);
+    if (order && order.paidAmount > 0) throw new Error('A paid reservation needs Finance review. Extend it or refund and cancel the order.');
 
     // Decrement active_reserved
     setBalances(prev => {
@@ -543,38 +540,92 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addAudit('RESERVATION_RELEASED', 'reservations', res.id, `Released hold of ${res.quantity} units for order ${res.orderNumber} (${data.reason})`);
   };
 
-  // 6. Fulfil Order (Atomic single deduction)
-  const fulfilOrder = (orderId: string) => {
-    if (!canPerform('fulfil_order')) throw new Error('Unauthorized to fulfil sales orders.');
-    const order = orders.find(o => o.id === orderId);
+  // Demo-only handover steps. The live version must perform these as database transactions.
+  const dispatchOrderLine = (data: { orderId: string; lineId: string; quantity: number; locationId: string; deliveryAddress: string; intendedRecipient: string }) => {
+    if (!canPerform('fulfil_order')) throw new Error('Unauthorized to release stock.');
+    const order = orders.find(item => item.id === data.orderId);
     if (!order) throw new Error('Order not found.');
+    if (!data.deliveryAddress.trim() || !data.intendedRecipient.trim()) throw new Error('Enter the delivery address and intended recipient.');
     const now = new Date().toISOString();
-    const plan = planFulfilment(order, balances, reservations, products, now);
+    const plan = planDispatch(order, data.lineId, data.quantity, data.locationId, balances, reservations, deliveries, now);
+    const line = order.lines.find(item => item.id === data.lineId)!;
+    const delivery: DeliveryRecord = {
+      id: `del-${crypto.randomUUID()}`,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      lineId: line.id,
+      productId: line.productId,
+      quantity: data.quantity,
+      sourceLocationId: plan.sourceLocationId,
+      deliveryAddress: data.deliveryAddress.trim(),
+      intendedRecipient: data.intendedRecipient.trim(),
+      status: 'dispatched',
+      dispatchedAt: now,
+      dispatchedBy: currentStaff.fullName,
+    };
+    const nextDeliveries = [delivery, ...deliveries];
     setBalances(plan.balances);
+    setReservations(plan.reservations);
+    setDeliveries(nextDeliveries);
+    setOrders(prev => prev.map(item => item.id === order.id ? { ...item, status: deliveryStatus(item, nextDeliveries) } : item));
+    setMovements(prev => [{
+      id: `mov-${crypto.randomUUID()}`,
+      productId: line.productId,
+      sourceLocationId: plan.sourceLocationId,
+      movementType: 'sale_fulfilment',
+      quantity: data.quantity,
+      referenceNo: delivery.id,
+      reason: `Dispatched for ${order.orderNumber}`,
+      createdBy: currentStaff.fullName,
+      createdAt: now,
+    }, ...prev]);
+    addAudit('ORDER_LINE_DISPATCHED', 'deliveries', delivery.id, `${data.quantity} unit(s) dispatched for ${order.orderNumber}; awaiting signed handover`);
+  };
 
-    // Mark reservations fulfilled
-    setReservations(prev => prev.map(r => r.orderId === orderId && r.status === 'active' ? { ...r, status: 'fulfilled' } : r));
+  const confirmDelivery = (data: { deliveryId: string; signedBy: string; signedReference: string }) => {
+    if (!canPerform('fulfil_order')) throw new Error('Unauthorized to confirm delivery.');
+    const record = deliveries.find(item => item.id === data.deliveryId);
+    if (!record || record.status !== 'dispatched') throw new Error('An open dispatch was not found.');
+    if (!data.signedBy.trim() || !data.signedReference.trim()) throw new Error('Enter the signatory and signed document reference.');
+    const nextDeliveries: DeliveryRecord[] = deliveries.map(item => item.id === data.deliveryId ? {
+      ...item, status: 'delivered', signedBy: data.signedBy.trim(), signedReference: data.signedReference.trim(), signedAt: new Date().toISOString(),
+    } : item);
+    setDeliveries(nextDeliveries);
+    setOrders(prev => prev.map(item => item.id === record.orderId ? { ...item, status: deliveryStatus(item, nextDeliveries) } : item));
+    addAudit('DELIVERY_SIGNED', 'deliveries', record.id, `Signed by ${data.signedBy.trim()} for ${record.orderNumber}; reference ${data.signedReference.trim()}`);
+  };
 
-    // Update order status
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'delivered' } : o));
+  const failDelivery = (data: { deliveryId: string; reason: string }) => {
+    if (!canPerform('fulfil_order')) throw new Error('Unauthorized to record failed delivery.');
+    const record = deliveries.find(item => item.id === data.deliveryId);
+    if (!record || record.status !== 'dispatched') throw new Error('An open dispatch was not found.');
+    if (!data.reason.trim()) throw new Error('Enter why delivery failed.');
+    setDeliveries(prev => prev.map(item => item.id === record.id ? { ...item, status: 'failed', failureReason: data.reason.trim() } : item));
+    addAudit('DELIVERY_FAILED', 'deliveries', record.id, data.reason.trim());
+  };
 
-    // Log movements
-    for (const { line, locationId } of plan.lines) {
-      const mov: StockMovement = {
-        id: `mov-${crypto.randomUUID()}`,
-        productId: line.productId,
-        sourceLocationId: locationId,
-        movementType: 'sale_fulfilment',
-        quantity: line.quantity,
-        referenceNo: order.orderNumber,
-        reason: `Fulfilled sales order ${order.orderNumber}`,
-        createdBy: currentStaff.fullName,
-        createdAt: now,
-      };
-      setMovements(prev => [mov, ...prev]);
-    }
-
-    addAudit('ORDER_FULFILLED', 'sales_orders', orderId, `Fulfilled and dispatched order ${order.orderNumber} for ${order.customerName}`);
+  const receiveFailedDelivery = (deliveryId: string) => {
+    if (!canPerform('post_receipt')) throw new Error('Unauthorized to receive returned goods.');
+    const record = deliveries.find(item => item.id === deliveryId);
+    if (!record || record.status !== 'failed') throw new Error('A failed delivery awaiting return was not found.');
+    const now = new Date().toISOString();
+    setBalances(prev => prev.map(item => item.productId === record.productId && item.locationId === record.sourceLocationId
+      ? { ...item, quarantineCount: item.quarantineCount + record.quantity, updatedAt: now } : item));
+    const nextDeliveries: DeliveryRecord[] = deliveries.map(item => item.id === record.id ? { ...item, status: 'returned_for_review', returnedAt: now } : item);
+    setDeliveries(nextDeliveries);
+    setOrders(prev => prev.map(item => item.id === record.orderId ? { ...item, status: deliveryStatus(item, nextDeliveries) } : item));
+    setMovements(prev => [{
+      id: `mov-${crypto.randomUUID()}`,
+      productId: record.productId,
+      destLocationId: record.sourceLocationId,
+      movementType: 'delivery_return_quarantine',
+      quantity: record.quantity,
+      referenceNo: record.id,
+      reason: 'Failed delivery returned for inspection',
+      createdBy: currentStaff.fullName,
+      createdAt: now,
+    }, ...prev]);
+    addAudit('FAILED_DELIVERY_RECEIVED', 'deliveries', record.id, `${record.quantity} unit(s) placed in quarantine for inspection`);
   };
 
   // 7. Record Payment & Derive Balance
@@ -589,8 +640,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (order.status === 'cancelled') throw new Error('Cancelled orders cannot receive payments.');
     if (data.amount > order.balanceDue) throw new Error(`Payment exceeds the ETB ${order.balanceDue.toLocaleString()} balance due.`);
     if (!data.referenceNo.trim()) throw new Error('Enter a payment reference.');
-    if (payments.some(payment => payment.orderId === data.orderId && payment.referenceNo.trim().toLowerCase() === data.referenceNo.trim().toLowerCase())) {
-      throw new Error('This payment reference is already recorded for the order.');
+    if (payments.some(payment => payment.referenceNo.trim().toLowerCase() === data.referenceNo.trim().toLowerCase())) {
+      throw new Error('This payment reference is already recorded.');
     }
 
     const newPaid = order.paidAmount + data.amount;
@@ -619,6 +670,41 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setPayments(prev => [payment, ...prev]);
 
     addAudit('PAYMENT_RECORDED', 'payments', payment.id, `Recorded ETB ${data.amount.toLocaleString()} for ${order.orderNumber} via ${data.paymentMethod} (Ref: ${data.referenceNo})`);
+  };
+
+  const refundAndCancelOrder = (data: { orderId: string; reason: string; referenceNo: string }) => {
+    if (!canPerform('approve_refund')) throw new Error('Only Finance can record a refund.');
+    const order = orders.find(item => item.id === data.orderId);
+    if (!order) throw new Error('An open order was not found.');
+    if (!data.reason.trim() || !data.referenceNo.trim()) throw new Error('Enter the refund reason and transaction reference.');
+    const now = new Date().toISOString();
+    const plan = planFullRefund(order, payments, refunds, deliveries, balances, reservations, data.referenceNo, now);
+    const refund: RefundRecord = {
+      id: `ref-${crypto.randomUUID()}`,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      amount: plan.amount,
+      referenceNo: data.referenceNo.trim(),
+      reason: data.reason.trim(),
+      recordedBy: currentStaff.fullName,
+      createdAt: now,
+    };
+    setRefunds(prev => [refund, ...prev]);
+    setReservations(plan.reservations);
+    setBalances(plan.balances);
+    setMovements(prev => [...plan.activeHolds.map(hold => ({
+      id: `mov-${crypto.randomUUID()}`,
+      productId: hold.productId,
+      destLocationId: hold.locationId,
+      movementType: 'reservation_release' as const,
+      quantity: hold.quantity,
+      referenceNo: refund.id,
+      reason: 'Reservation released after Finance refund',
+      createdBy: currentStaff.fullName,
+      createdAt: now,
+    })), ...prev]);
+    setOrders(prev => prev.map(item => item.id === order.id ? { ...item, status: 'cancelled', balanceDue: 0 } : item));
+    addAudit('ORDER_REFUNDED_CANCELLED', 'sales_orders', order.id, `Finance refunded ETB ${plan.amount.toLocaleString()} for ${order.orderNumber}; reference ${refund.referenceNo}`);
   };
 
   // 8. Authorized Stock Adjustment (Manager/Admin Only)
@@ -724,6 +810,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.removeItem(`${STORAGE_KEY}_customers`);
     localStorage.removeItem(`${STORAGE_KEY}_reservations`);
     localStorage.removeItem(`${STORAGE_KEY}_payments`);
+    localStorage.removeItem(`${STORAGE_KEY}_refunds`);
+    localStorage.removeItem(`${STORAGE_KEY}_deliveries`);
     localStorage.removeItem(`${STORAGE_KEY}_exceptions`);
     localStorage.removeItem(`${STORAGE_KEY}_audit`);
 
@@ -734,6 +822,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCustomers(INITIAL_CUSTOMERS);
     setReservations(INITIAL_RESERVATIONS);
     setPayments(INITIAL_PAYMENTS);
+    setRefunds([]);
+    setDeliveries([]);
     setExceptions(INITIAL_EXCEPTIONS);
     setAuditEvents(INITIAL_AUDIT);
     setCurrentStaff(INITIAL_STAFF[0]);
@@ -756,6 +846,8 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         customers,
         reservations,
         payments,
+        refunds,
+        deliveries,
         exceptions,
         auditEvents,
         canPerform,
@@ -765,9 +857,14 @@ export const ErpProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         postTransfer,
         createOrder,
         createReservation,
+        extendReservation,
         releaseReservation,
-        fulfilOrder,
+        dispatchOrderLine,
+        confirmDelivery,
+        failDelivery,
+        receiveFailedDelivery,
         recordPayment,
+        refundAndCancelOrder,
         recordAdjustment,
         createException,
         importCatalogueBatch,

@@ -3,9 +3,9 @@ import { useErp } from '../context/ErpContext';
 import { CheckCircle, Clock } from 'lucide-react';
 
 export const PaymentsView: React.FC = () => {
-  const { payments, orders } = useErp();
+  const { payments, refunds, orders } = useErp();
 
-  const totalCollected = payments.reduce((sum, p) => sum + p.amount, 0);
+  const totalCollected = payments.reduce((sum, p) => sum + p.amount, 0) - refunds.reduce((sum, refund) => sum + refund.amount, 0);
   const totalDue = orders.reduce((sum, o) => sum + o.balanceDue, 0);
 
   return (
@@ -14,7 +14,7 @@ export const PaymentsView: React.FC = () => {
         <div className="view-title-group">
           <h1>Payments & Financial Cashier</h1>
           <p>
-            Immutable transaction records for customer deposits, installments, and final settlements.
+            Finance-recorded deposits, final payments, and pre-dispatch refunds in this browser-local demo.
           </p>
         </div>
       </div>
@@ -27,7 +27,7 @@ export const PaymentsView: React.FC = () => {
             <CheckCircle size={18} color="var(--color-success-text)" />
           </div>
           <div className="metric-value">ETB {totalCollected.toLocaleString()}</div>
-          <div className="metric-sub">{payments.length} verified transactions</div>
+          <div className="metric-sub">{payments.length} payments · {refunds.length} refunds</div>
         </div>
 
         <div className="metric-card">
@@ -36,8 +36,18 @@ export const PaymentsView: React.FC = () => {
             <Clock size={18} color="var(--color-danger-text)" />
           </div>
           <div className="metric-value">ETB {totalDue.toLocaleString()}</div>
-          <div className="metric-sub">Collectable upon delivery / dispatch</div>
+          <div className="metric-sub">Must be cleared before dispatch</div>
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card-header"><h2>Refunds before dispatch</h2></div>
+        <div className="table-responsive"><table className="data-table mobile-card-table">
+          <thead><tr><th>Order</th><th>Refund reference</th><th>Reason</th><th>Recorded by</th><th>Amount</th></tr></thead>
+          <tbody>{refunds.map(refund => <tr key={refund.id}>
+            <td data-label="Order">{refund.orderNumber}</td><td data-label="Reference">{refund.referenceNo}</td><td data-label="Reason">{refund.reason}</td><td data-label="Recorded by">{refund.recordedBy}</td><td data-label="Amount">ETB {refund.amount.toLocaleString()}</td>
+          </tr>)}{refunds.length === 0 && <tr><td colSpan={5} className="empty-state">No refunds recorded.</td></tr>}</tbody>
+        </table></div>
       </div>
 
       {/* Payments Table */}
