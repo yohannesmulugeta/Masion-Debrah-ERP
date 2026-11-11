@@ -24,7 +24,7 @@
 ## Still required for a live ERP
 
 - The public demo still uses browser `localStorage` and a switchable demo role. A separate live-mode UI now uses named Supabase Auth accounts, shared tables, and server-checked workflow RPCs; it has not yet passed a real user walkthrough.
-- The live database now holds 93 inactive draft products from the Ethiopia website-description workbook. They have no approved local prices or posted opening stock, so they cannot be ordered yet. Two source rows share SKU `SF26002-C1` and are flagged for review.
+- The live database now holds 93 inactive draft products from the Ethiopia website-description workbook. Sixty-five have exact-code primary images in Supabase Storage; 28 still need confirmed images. They have no approved local prices or posted opening stock, so they cannot be ordered yet. Two source rows share SKU `SF26002-C1` and are flagged for review.
 - Signed documents are represented by a reference number; the demo does not upload or retain the actual document.
 - Refunds after dispatch, complaints, inspection/release of quarantined goods, and legal policy wording require reviewed procedures.
 - Product pricing and opening stock reconciliation are pending. The browser-local demo still uses sample products and quantities; the live catalogue contains the 93 draft source records only.

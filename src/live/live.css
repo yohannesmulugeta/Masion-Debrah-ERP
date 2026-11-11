@@ -36,6 +36,8 @@
 .live-card td { padding: 14px 18px; border-bottom: 1px solid var(--color-border); vertical-align: top; }
 .live-card tr:last-child td { border-bottom: 0; }
 .live-card td button { white-space: nowrap; }
+.live-product-image { display: block; width: 68px; height: 68px; object-fit: cover; border-radius: var(--radius-sm); background: var(--color-bg-subtle); }
+.live-image-pending { display: grid; place-items: center; width: 68px; min-height: 68px; border: 1px dashed var(--color-border-dark); border-radius: var(--radius-sm); color: var(--color-text-muted); font-size: .68rem; text-align: center; }
 .live-empty, .live-hint { color: var(--color-text-muted); font-size: .9rem; }
 .card > .live-empty { padding: 28px 24px; }
 .live-note, .live-error, .live-success { padding: 12px 15px; border-radius: var(--radius-sm); margin-bottom: 20px; font-size: .9rem; }

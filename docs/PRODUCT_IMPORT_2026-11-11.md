@@ -19,3 +19,14 @@ Import batch: `ETHIOPIA-WEBSITE-2368E88B7C6E5C31`.
 3. Confirm the physical opening quantity for each SKU separately in Warehouse and Showrooms 1–3. The workbook's combined showroom quantity is not enough to assign stock to a specific room.
 
 Verification after import: 93 products total; 93 inactive with no local price; 0 active products; 0 duplicate SKUs; 0 stock-balance rows; 93 audit events; 2 flagged source rows.
+
+## Product photographs
+
+Primary images were added later on 11 November 2026. A public-read Supabase Storage bucket, `erp-product-images`, holds 65 images. The ERP `products.image_url` field links the matching 65 draft SKUs to these objects. The bucket is restricted to JPEG, PNG, or WebP files of at most 10 MB; browser clients have no write policy. The original source files remain untouched.
+
+- 26 primary images came from exact product-code folders in `Product Photos - Ethiopia Website.zip`.
+- 32 came from exact-SKU product records in the local Maison Debrah website media. Matching marketing names were preferred where the sources disagreed.
+- 7 came from exact-code supplier photo review workbook previews. These are small review thumbnails and need higher-resolution replacements.
+- 28 imported products have no confirmed primary image. Do not fill these with similar names, partial codes, or room-scene photographs without a product identity check.
+
+Verification: 65 stored objects, 65 linked products, zero broken database image paths, and 65 `PRODUCT_IMAGE_LINKED` audit events. A public sample image returned HTTP 200. All products remain inactive and unpriced; no opening stock was posted. Photo files are public-read because they are product media intended for the website; uploads are not open to browser users.
