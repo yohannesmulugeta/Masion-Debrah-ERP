@@ -24,10 +24,10 @@
 ## Still required for a live ERP
 
 - The public demo still uses browser `localStorage` and a switchable demo role. A separate live-mode UI now uses named Supabase Auth accounts, shared tables, and server-checked workflow RPCs; it has not yet passed a real user walkthrough.
-- The live database has no approved products, prices, or opening stock. Load verified company data before entering real orders.
+- The live database now holds 93 inactive draft products from the Ethiopia website-description workbook. They have no approved local prices or posted opening stock, so they cannot be ordered yet. Two source rows share SKU `SF26002-C1` and are flagged for review.
 - Signed documents are represented by a reference number; the demo does not upload or retain the actual document.
 - Refunds after dispatch, complaints, inspection/release of quarantined goods, and legal policy wording require reviewed procedures.
-- Opening product/price data and stock counts are sample values. Production import and reconciliation are pending.
+- Product pricing and opening stock reconciliation are pending. The browser-local demo still uses sample products and quantities; the live catalogue contains the 93 draft source records only.
 - GitHub Pages has not yet been switched to live mode. The Supabase project serves the shared backend.
 
 ## Environment check
