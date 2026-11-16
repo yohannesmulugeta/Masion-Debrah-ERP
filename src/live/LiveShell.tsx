@@ -25,6 +25,7 @@ type LiveShellProps = {
   onRefresh: () => void;
   onSignOut: () => void;
   busy: boolean;
+  testing?: boolean;
 };
 
 const navGroups: { title: string; items: { tab: LiveTab; label: string; icon: typeof LayoutDashboard; count?: 'orders' | 'reservations' }[] }[] = [
@@ -44,7 +45,7 @@ const navGroups: { title: string; items: { tab: LiveTab; label: string; icon: ty
 
 export function LiveShell({
   children, currentTab, onNavigate, locations, selectedLocationId, onLocationChange,
-  profile, openOrders, activeReservations, onRefresh, onSignOut, busy,
+  profile, openOrders, activeReservations, onRefresh, onSignOut, busy, testing = false,
 }: LiveShellProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const sidebarRef = useRef<HTMLElement>(null);
@@ -128,14 +129,14 @@ export function LiveShell({
           <button className="btn btn-secondary btn-sm live-refresh" onClick={onRefresh} disabled={busy}>
             <RefreshCw size={13} aria-hidden="true" /><span>Refresh Data</span>
           </button>
-          <span className="role-badge live-role-badge"><ShieldCheck size={14} aria-hidden="true" />{profile.role.replaceAll('_', ' ')}</span>
+          <span className="role-badge live-role-badge"><ShieldCheck size={14} aria-hidden="true" />{testing ? 'All workflows' : profile.role.replaceAll('_', ' ')}</span>
           <div className="header-profile live-profile"><div className="staff-avatar">{initials}</div><div>
             <strong>{profile.full_name}</strong><span>{profile.email}</span>
           </div></div>
-          <button className="btn btn-secondary btn-sm live-signout" onClick={onSignOut}>Sign out</button>
+          {!testing && <button className="btn btn-secondary btn-sm live-signout" onClick={onSignOut}>Sign out</button>}
         </div>
       </header>
-      <div className="live-status-banner">Live staff workspace · Shared Maison Debrah records</div>
+      <div className="live-status-banner">{testing ? 'TEMPORARY OPEN TESTING · No sign-in or staff permissions · Changes affect the shared live database' : 'Live staff workspace · Shared Maison Debrah records'}</div>
       <main id="live-main" className="app-content live-main" tabIndex={-1} ref={mainRef}>{children}</main>
     </div>
   </div>;

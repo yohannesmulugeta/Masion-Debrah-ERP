@@ -93,6 +93,7 @@ export type Database = {
       }
       deliveries: {
         Row: {
+          carrier_name: string | null
           created_at: string
           delivered_at: string | null
           delivery_address: string
@@ -105,6 +106,7 @@ export type Database = {
           line_id: string | null
           notes: string | null
           order_id: string
+          planned_delivery_date: string | null
           product_id: string | null
           quantity: number | null
           recipient_name: string
@@ -116,6 +118,7 @@ export type Database = {
           source_location_id: string | null
         }
         Insert: {
+          carrier_name?: string | null
           created_at?: string
           delivered_at?: string | null
           delivery_address: string
@@ -128,6 +131,7 @@ export type Database = {
           line_id?: string | null
           notes?: string | null
           order_id: string
+          planned_delivery_date?: string | null
           product_id?: string | null
           quantity?: number | null
           recipient_name: string
@@ -139,6 +143,7 @@ export type Database = {
           source_location_id?: string | null
         }
         Update: {
+          carrier_name?: string | null
           created_at?: string
           delivered_at?: string | null
           delivery_address?: string
@@ -151,6 +156,7 @@ export type Database = {
           line_id?: string | null
           notes?: string | null
           order_id?: string
+          planned_delivery_date?: string | null
           product_id?: string | null
           quantity?: number | null
           recipient_name?: string
@@ -250,6 +256,90 @@ export type Database = {
             columns: ["uploaded_by"]
             isOneToOne: false
             referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_room_transfers: {
+        Row: {
+          destination_id: string
+          discrepancy: string | null
+          dispatched_at: string
+          dispatched_by: string
+          id: string
+          notes: string
+          product_id: string
+          quantity: number
+          received_at: string | null
+          received_by: string | null
+          received_quantity: number | null
+          reference: string
+          source_id: string
+        }
+        Insert: {
+          destination_id: string
+          discrepancy?: string | null
+          dispatched_at?: string
+          dispatched_by: string
+          id?: string
+          notes: string
+          product_id: string
+          quantity: number
+          received_at?: string | null
+          received_by?: string | null
+          received_quantity?: number | null
+          reference: string
+          source_id: string
+        }
+        Update: {
+          destination_id?: string
+          discrepancy?: string | null
+          dispatched_at?: string
+          dispatched_by?: string
+          id?: string
+          notes?: string
+          product_id?: string
+          quantity?: number
+          received_at?: string | null
+          received_by?: string | null
+          received_quantity?: number | null
+          reference?: string
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_room_transfers_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_room_transfers_dispatched_by_fkey"
+            columns: ["dispatched_by"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_room_transfers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_room_transfers_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "staff_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "erp_room_transfers_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
             referencedColumns: ["id"]
           },
         ]
@@ -1014,8 +1104,11 @@ export type Database = {
           product_id: string
           quantity: number
           reason: string
+          receipt_document_name: string | null
+          receipt_document_path: string | null
           reference_no: string
           source_location_id: string | null
+          supplier_name: string | null
         }
         Insert: {
           created_at?: string
@@ -1026,8 +1119,11 @@ export type Database = {
           product_id: string
           quantity: number
           reason: string
+          receipt_document_name?: string | null
+          receipt_document_path?: string | null
           reference_no: string
           source_location_id?: string | null
+          supplier_name?: string | null
         }
         Update: {
           created_at?: string
@@ -1038,8 +1134,11 @@ export type Database = {
           product_id?: string
           quantity?: number
           reason?: string
+          receipt_document_name?: string | null
+          receipt_document_path?: string | null
           reference_no?: string
           source_location_id?: string | null
+          supplier_name?: string | null
         }
         Relationships: [
           {
@@ -1097,6 +1196,10 @@ export type Database = {
         Args: { p_prices: Json; p_reason: string }
         Returns: number
       }
+      erp_assign_delivery_transport: {
+        Args: { p_carrier: string; p_delivery: string; p_planned_date: string }
+        Returns: undefined
+      }
       erp_attach_evidence: {
         Args: {
           p_delivery_id: string
@@ -1114,6 +1217,16 @@ export type Database = {
           p_signed_reference: string
         }
         Returns: undefined
+      }
+      erp_create_catalogue_draft: {
+        Args: {
+          p_category: string
+          p_description: string
+          p_name: string
+          p_sku: string
+          p_variant: string
+        }
+        Returns: string
       }
       erp_create_draft_product: {
         Args: {
@@ -1166,6 +1279,20 @@ export type Database = {
         }
         Returns: string
       }
+      erp_dispatch_with_transport: {
+        Args: {
+          p_address: string
+          p_carrier: string
+          p_line: string
+          p_phone: string
+          p_planned_date: string
+          p_quantity: number
+          p_recipient: string
+          p_request_key: string
+          p_source: string
+        }
+        Returns: string
+      }
       erp_extend_reservation: {
         Args: {
           p_expires_at: string
@@ -1215,6 +1342,22 @@ export type Database = {
         Args: { p_delivery_id: string }
         Returns: undefined
       }
+      erp_receive_room_transfer: {
+        Args: { p_discrepancy: string; p_quantity: number; p_transfer: string }
+        Returns: undefined
+      }
+      erp_receive_warehouse: {
+        Args: {
+          p_document_name: string
+          p_document_path: string
+          p_notes: string
+          p_product: string
+          p_quantity: number
+          p_reference: string
+          p_supplier: string
+        }
+        Returns: string
+      }
       erp_record_payment: {
         Args: {
           p_amount: number
@@ -1244,9 +1387,28 @@ export type Database = {
         }
         Returns: undefined
       }
+      erp_send_room_transfer: {
+        Args: {
+          p_destination: string
+          p_notes: string
+          p_product: string
+          p_quantity: number
+          p_reference: string
+          p_source: string
+        }
+        Returns: string
+      }
+      erp_testing_status: { Args: never; Returns: Json }
       erp_update_product_price: {
         Args: { p_local_price: number; p_product_id: string; p_reason: string }
         Returns: undefined
+      }
+      erp_website_availability: {
+        Args: never
+        Returns: {
+          in_stock: boolean
+          sku: string
+        }[]
       }
       fn_create_reservation: {
         Args: {

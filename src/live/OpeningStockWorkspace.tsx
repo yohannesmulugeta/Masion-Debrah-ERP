@@ -15,6 +15,84 @@ type Props = {
   perform: (task: () => PromiseLike<TaskResult>, success: string, form?: HTMLFormElement) => Promise<boolean>;
 };
 
+export const ethiopiaOpeningAreaCodes = ['WH', 'SR-1', 'SR-2', 'SR-3'];
+const countKey = (productId: string, locationId: string) => `${productId}/${locationId}`;
+
+export function EthiopiaOpeningCounts({ products, locations, balances, canManage, busy, client, perform }: Props) {
+  const [entries, setEntries] = useState<Record<string, string>>({});
+  const [reference, setReference] = useState('');
+  const [reviewing, setReviewing] = useState(false);
+  const [saved, setSaved] = useState('');
+  const areas = ethiopiaOpeningAreaCodes.flatMap(code => locations.filter(area => area.is_active && area.code === code));
+  const existing = new Map(balances.map(balance => [countKey(balance.product_id, balance.location_id), balance]));
+  const rows = products.flatMap(product => areas.flatMap(area => {
+    const key = countKey(product.id, area.id);
+    const value = entries[key] ?? '';
+    return value === '' ? [] : [{ key, product, area, value, existing: existing.has(key) }];
+  }));
+  const invalid = rows.some(row => row.existing || !/^\d+$/.test(row.value) || Number(row.value) > 2147483647);
+  const pendingApproval = rows.filter(row => !row.product.is_active || !(Number(row.product.local_price) > 0));
+
+  async function postCounts() {
+    if (busy || !canManage || !reviewing || !reference.trim() || !rows.length || invalid || pendingApproval.length) return;
+    const items = rows.map(({ product, area, value }) => ({
+      product_id: product.id, location_id: area.id, quantity: Number(value),
+    }));
+    const count = await perform(() => client.rpc('erp_post_opening_stock', {
+      p_items: items, p_reference: reference.trim(),
+    }), `${items.length} opening counts posted.`);
+    if (!count) return;
+    setSaved(`${items.length} opening counts posted for count sheet ${reference.trim()}.`);
+    setEntries({});
+    setReference('');
+    setReviewing(false);
+  }
+
+  if (!products.length) return null;
+  return <section className="live-card">
+    <h3>Ethiopia opening counts</h3>
+    <p className="live-hint">Use a verified count sheet. Leave unconfirmed areas blank and enter 0 for a confirmed zero. Draft entries are kept while this screen is open.</p>
+    {saved && <p role="status">{saved}</p>}
+    {reviewing ? <>
+      <h4>Review count sheet {reference}</h4>
+      <div className="live-table-wrap"><table><thead><tr><th scope="col">SKU</th><th scope="col">Area</th><th scope="col">Count</th></tr></thead>
+        <tbody>{rows.map(row => <tr key={row.key}><td>{row.product.sku}</td><td>{row.area.name}</td><td>{row.value}</td></tr>)}</tbody>
+      </table></div>
+      <p>{areas.filter(area => rows.some(row => row.area.id === area.id)).map(area =>
+        `${area.name}: ${rows.filter(row => row.area.id === area.id).reduce((total, row) => total + Number(row.value), 0)} units`).join(' · ')}</p>
+      {invalid && <p role="alert">Some entries are invalid or now have a stock record. Return to the grid and review them before posting.</p>}
+      {pendingApproval.length > 0 && <p role="status">Posting requires active products with an approved price. Waiting for approval: {[...new Set(pendingApproval.map(row => row.product.sku))].join(', ')}.</p>}
+      <button type="button" disabled={busy} onClick={() => setReviewing(false)}>Back to counts</button>{' '}
+      <button type="button" className="live-primary" disabled={busy || invalid || !!pendingApproval.length || !canManage}
+        onClick={() => void postCounts()}>{busy ? 'Posting…' : 'Confirm and post counts'}</button>
+    </> : <form onSubmit={event => { event.preventDefault(); if (rows.length && !invalid && reference.trim()) setReviewing(true); }}>
+      <div className="live-table-wrap" tabIndex={0} aria-label="Ethiopia counts by area"><table>
+        <thead><tr><th scope="col">SKU and product</th>{areas.map(area => <th scope="col" key={area.id}>{area.name}</th>)}</tr></thead>
+        <tbody>{products.map(product => <tr key={product.id}><th scope="row">
+          {product.image_url && <img className="live-product-image" src={product.image_url} alt="" loading="lazy" />}
+          <strong>{product.sku}</strong><br />{product.name}
+        </th>{areas.map(area => {
+          const key = countKey(product.id, area.id);
+          const balance = existing.get(key);
+          return <td key={area.id}>{balance ? <>Stock recorded · {balance.sellable_on_hand} on hand
+            {entries[key] !== undefined && <button type="button" onClick={() => setEntries(previous => ({ ...previous, [key]: '' }))}>Clear pending entry</button>}</>
+            : canManage ? <input aria-label={`${product.sku} count for ${area.name}`}
+              type="text" inputMode="numeric" size={6} placeholder="Unconfirmed" value={entries[key] ?? ''}
+              disabled={busy} onChange={event => {
+                const value = event.target.value;
+                setEntries(previous => ({ ...previous, [key]: value }));
+              }} /> : 'Unconfirmed'}</td>;
+        })}</tr>)}</tbody>
+      </table></div>
+      {canManage && <>
+        <label className="live-field"><span>Count sheet reference</span><input value={reference} onChange={event => setReference(event.target.value)} required /></label>
+        {invalid && <p role="alert">Enter whole numbers from 0 to 2,147,483,647 and clear entries for areas that already have stock records.</p>}
+        <button className="live-primary" disabled={busy || !rows.length || invalid || !reference.trim()}>Review {rows.length} counts</button>
+      </>}
+    </form>}
+  </section>;
+}
+
 function parseCounts(text: string, products: Product[], locations: Location[], balances: Balance[]) {
   const bySku = new Map(products.map(product => [product.sku.toUpperCase(), product]));
   const byArea = new Map(locations.map(location => [location.code.toUpperCase(), location]));

@@ -1,10 +1,12 @@
 # Maison Debrah ERP
 
-The public site is a browser-local demonstration of inventory, orders, Finance-recorded payments, deposit reservations, dispatch, and signed handover for four areas in one building: **Warehouse** and **Showroom 1–3**. The separate live mode connects to the Maison Debrah Supabase project and is still in local verification. The public demo role selector is not authentication; its products, stock, prices, customers, and payments are sample data.
+**12 November 2026 — temporary open testing:** the shared live backend currently permits the staff workflows without sign-in or role restrictions, at the owner's explicit request. The live local app at `http://127.0.0.1:5175/` detects this mode automatically. Business validation remains enabled. See [the testing report and restoration procedure](docs/OPEN_TESTING_REPORT.md) before using shared records. Port 5173 remains the separate browser-local demo.
 
-## Public demo
+The ERP handles inventory, orders, Finance-recorded payments, deposit reservations, dispatch, and signed handover for **Warehouse** and **Showrooms 1–3**. The local demo uses sample data. The connected preview uses the shared Maison Debrah Supabase workspace.
 
-The GitHub Pages build is published from `main` by `.github/workflows/deploy-pages.yml` at <https://yohannesmulugeta.github.io/Masion-Debrah-ERP/>. The site is a public demo: anyone can open it, change their own browser-local copy, and reset that copy. Do not enter real customer, staff, stock, or payment information.
+## Public connected preview
+
+GitHub Pages builds from `main` via `.github/workflows/deploy-pages.yml` and serves the preview at <https://yohannesmulugeta.github.io/Masion-Debrah-ERP/>. The workflow uses the `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` GitHub Actions secrets. The client requires a publishable browser key. While open testing is enabled, actions affect shared records. Use simulated customer, transaction, and evidence data.
 
 The interface uses the supplied Maison Debrah logo artwork, the brand guideline's dark `#2A352F` and light `#AFBBA3` colors, and Playfair Display with Inter. The web logo in `public/brand/` is a tightly framed copy of the supplied light logo with the guideline's light color. See `docs/PRESENTATION_GUIDE.md` for a short demonstration sequence.
 
@@ -25,7 +27,7 @@ The repository is linked to the dedicated Maison Debrah Supabase project. A loca
 npm run dev -- --mode live --host 127.0.0.1 --port 5175
 ```
 
-Open <http://127.0.0.1:5175/>. The invited administrator can use **Need to set or reset your password?** to request a fresh email link, then set the ERP password personally. Do not share that password. The temporary Supabase Auth redirect is configured for this local address; the final GitHub Pages redirect must be configured before a live deployment.
+Open <http://127.0.0.1:5175/>. When named access is restored, the invited administrator can use **Need to set or reset your password?** to request a fresh email link. The temporary Auth redirect is configured for this local address. Add the Pages path to the allowed redirects before using password setup on the public preview.
 
 ## Checks
 

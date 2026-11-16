@@ -1,4 +1,4 @@
-name: Deploy demo to GitHub Pages
+name: Deploy ERP preview to GitHub Pages
 
 on:
   push:
@@ -33,7 +33,17 @@ jobs:
       - name: Run tests
         run: npm test
       - name: Build for repository path
-        run: npm run build -- --mode github-pages
+        env:
+          VITE_ERP_MODE: live
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        shell: bash
+        run: |
+          if [[ -z "$VITE_SUPABASE_URL" || -z "$VITE_SUPABASE_ANON_KEY" ]]; then
+            echo "::error::Configure the ERP browser connection in GitHub Actions secrets."
+            exit 1
+          fi
+          npm run build -- --mode github-pages
       - name: Configure Pages
         uses: actions/configure-pages@v6
       - name: Upload Pages artifact
